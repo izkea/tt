@@ -14,7 +14,7 @@ pub fn get_secs_now() -> u64 {
     sys_time.as_secs()
 }
 
-pub fn _md5_bytes(data:&str) -> [u8; 16] {
+pub fn md5_bytes(data:&str) -> [u8; 16] {
     let mut buf  = [0;16];
     let mut hasher = Md5::new();
     hasher.input_str(data);
@@ -54,7 +54,6 @@ pub fn get_random_bytes() -> Vec<u8> {
     let mut length = rand::random::<usize>() % 20 + 8;
     let mut result = Vec::with_capacity(length);
     while length > 0  {
-        // TODO
         result.push(rand::random::<u8>());
         length -= 1;
     };

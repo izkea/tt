@@ -18,12 +18,12 @@ pub fn run(KEY:&'static str, BIND_ADDR:&'static str, PORT_RANGE_START:u32, PORT_
     thread::spawn( move || start_listener(KEY, BIND_ADDR, PORT_RANGE_START, PORT_RANGE_END, MTU, time_now    ));
     thread::spawn( move || start_listener(KEY, BIND_ADDR, PORT_RANGE_START, PORT_RANGE_END, MTU, time_now + 1));
 
-    // 定时任务， 每分钟启动一个新的 start_listener()
     let mut sched = JobScheduler::new();
     sched.add(Job::new("0 * * * * *".parse().unwrap(), || {
         thread::spawn( move || start_listener(
                 KEY, BIND_ADDR, PORT_RANGE_START, PORT_RANGE_END, MTU, utils::get_secs_now()/60 + 1));
-    }));
+        }
+    ));
     loop {
         sched.tick();
         std::thread::sleep(time::Duration::from_millis(500));
@@ -35,7 +35,7 @@ fn start_listener(KEY:&'static str, BIND_ADDR:&'static str, PORT_RANGE_START:u32
     let port = utils::get_port(otp, PORT_RANGE_START, PORT_RANGE_END);
     let time_span = utils::get_time_span(otp);
     let encoder = Encoder::new(KEY, otp);
-    println!("Open port : [{}], time_span:[{}]", port, time_span);
+    println!("Open port : [{}], lifetime: [{}]", port, time_span);
 
     let streams = Arc::new(Mutex::new(Vec::new())); 
     let flag_stop = Arc::new(Mutex::new(false));
@@ -74,13 +74,13 @@ fn start_listener(KEY:&'static str, BIND_ADDR:&'static str, PORT_RANGE_START:u32
         thread::spawn(move||server_backend_socks5::handle_connection(_stream, encoder, MTU));
         streams.lock().unwrap().push(stream);
     }
-    println!("Close port:{}, time_span:{}", port, time_span);
+    println!("Close port: [{}], lifetime: [{}]", port, time_span);
     
-    // #TODO If we shutdown all the existing streams, then the client has to establish a new one.
-    // for now, the client_frontend_socks5 will only drop the client side streams as well.
-    let lock = Arc::try_unwrap(streams).expect("Error: lock still has multiple owners");
-    let streams = lock.into_inner().expect("Error: mutex cannot be locked");
-    for stream in streams {
-        stream.shutdown(net::Shutdown::Both).unwrap_or_else(|_err|eprintln!("Error: failed to kill streams, {}", _err));
-    }
+    // #TODO If we kill all the existing streams, then the client has to establish a new one.
+    // so we disable it for now, as the client_frontend_socks5 will drop the connection as well.
+//    let lock = Arc::try_unwrap(streams).expect("Error: lock still has multiple owners");
+//    let streams = lock.into_inner().expect("Error: mutex cannot be locked");
+//    for stream in streams {
+//        stream.shutdown(net::Shutdown::Both).unwrap_or_else(|_err|eprintln!("Error: failed to kill streams, {}", _err));
+//    }
 }

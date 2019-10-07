@@ -7,8 +7,8 @@ use std::io::prelude::*;
 
 pub fn run(KEY:&'static str, SERVER_ADDR:&'static str, BIND_ADDR:&'static str, 
             PORT_RANGE_START:u32, PORT_RANGE_END:u32, MTU:usize) {
-    let listener = net::TcpListener::bind(BIND_ADDR).unwrap();
 
+    let listener = net::TcpListener::bind(BIND_ADDR).unwrap();
     for local_stream in listener.incoming() {
         let local_stream = local_stream.unwrap();
         let (upstream, encoder) = client::get_stream(KEY, SERVER_ADDR, PORT_RANGE_START, PORT_RANGE_END);
@@ -42,7 +42,7 @@ pub fn run(KEY:&'static str, SERVER_ADDR:&'static str, BIND_ADDR:&'static str,
                         upstream_read.shutdown(net::Shutdown::Both);
                         local_stream_write.shutdown(net::Shutdown::Both);
                         // #TODO
-                        // 1. distinguish from server port close, like packets "FFFF"..
+                        // 1. distinguish from server port close, something like a packet "FFFF"..
                         // 2. upstream status shall be handled by client.rs, encode/decode included
                         break;
                     }
@@ -60,7 +60,7 @@ pub fn run(KEY:&'static str, SERVER_ADDR:&'static str, BIND_ADDR:&'static str,
                     };
                 }
                 else {
-                    // eprintln!("download stream decode error!"); 
+                     eprintln!("download stream decode error!");
                 }
                 if offset < index {
                     buf.copy_within(offset..index, 0);
@@ -69,9 +69,8 @@ pub fn run(KEY:&'static str, SERVER_ADDR:&'static str, BIND_ADDR:&'static str,
                 else {
                     index = 0;
                 }
-
             }
-            println!("Download stream exited...");
+            //println!("Download stream exited...");
         });
 
         // upload stream
@@ -102,7 +101,7 @@ pub fn run(KEY:&'static str, SERVER_ADDR:&'static str, BIND_ADDR:&'static str,
                     }
                 };
             }
-            println!("Upload stream exited...");
+            //println!("Upload stream exited...");
         });
     }
 }
