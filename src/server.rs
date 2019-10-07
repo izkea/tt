@@ -1,11 +1,9 @@
 #![allow(non_snake_case)]
-extern crate job_scheduler;
 
 use std::net;
 use std::time;
 use std::thread;
 use std::sync::{Arc, Mutex};
-use job_scheduler::{JobScheduler, Job};
 
 use crate::utils;
 use crate::server_backend_socks5;
@@ -18,16 +16,26 @@ pub fn run(KEY:&'static str, BIND_ADDR:&'static str, PORT_RANGE_START:u32, PORT_
     thread::spawn( move || start_listener(KEY, BIND_ADDR, PORT_RANGE_START, PORT_RANGE_END, MTU, time_now    ));
     thread::spawn( move || start_listener(KEY, BIND_ADDR, PORT_RANGE_START, PORT_RANGE_END, MTU, time_now + 1));
 
+    loop {
+        thread::sleep(time::Duration::from_secs(2));
+        let time_now = utils::get_secs_now();
+        if time_now % 60 >= 2 { continue; };  // once a minute
+        thread::spawn( move || start_listener(
+            KEY, BIND_ADDR, PORT_RANGE_START, PORT_RANGE_END, MTU, utils::get_secs_now()/60 + 1)
+        );
+    }
+
+    /*
     let mut sched = JobScheduler::new();
     sched.add(Job::new("0 * * * * *".parse().unwrap(), || {
         thread::spawn( move || start_listener(
                 KEY, BIND_ADDR, PORT_RANGE_START, PORT_RANGE_END, MTU, utils::get_secs_now()/60 + 1));
-        }
-    ));
+    }));
     loop {
         sched.tick();
         std::thread::sleep(time::Duration::from_millis(500));
     }
+    */
 }
 
 fn start_listener(KEY:&'static str, BIND_ADDR:&'static str, PORT_RANGE_START:u32, PORT_RANGE_END:u32, MTU:usize, time_start:u64) {
@@ -53,7 +61,7 @@ fn start_listener(KEY:&'static str, BIND_ADDR:&'static str, PORT_RANGE_START:u32
         loop {
             thread::sleep(time::Duration::from_secs(3));
             let time_now = utils::get_secs_now();
-            if time_now % 60 >= 58 || time_now/60 < time_start { continue; };  // once a minute
+            if time_now % 60 >= 3 || time_now/60 < time_start { continue; };  // once a minute
             let time_diff = (time_now / 60 - time_start) as u8;
             if time_diff >= time_span || time_diff > 2 && _streams.lock().unwrap().len() == 0 {
                 *_flag_stop.lock().unwrap() = true;
