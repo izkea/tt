@@ -56,14 +56,13 @@ pub fn handle_connection(client_stream:net::TcpStream, encoder:Encoder, MTU:usiz
                     Ok(_) => (),
                     Err(_) => break
                 };
+                buf.copy_within(offset as usize .. index, 0);
+                index = index - (offset as usize);
             }
-            else { eprintln!("upload stream decode error!"); }
-
-            if offset < index {
-                buf.copy_within(offset..index, 0);
-                index = index - offset;
+            else if offset == -1 {
+                eprintln!("upload stream decode error!"); 
             }
-            else { index = 0; }
+            else {} // decrypted_size ==0 && offset == 0: packet length not ok
         }
         client_stream_read.shutdown(net::Shutdown::Both);
         upstream_write.shutdown(net::Shutdown::Both);

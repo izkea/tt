@@ -64,7 +64,7 @@ impl Encoder {
         data_start + data_len + 16
     }
 
-    pub fn decode(&self, input: &[u8], output: &mut [u8]) -> (usize, usize) {
+    pub fn decode(&self, input: &[u8], output: &mut [u8]) -> (usize, i32) {
         let input_len = input.len();
         let random_size = self.decode_random_size(input[0], input[1]);
         if input_len <= 1 + random_size + 2 + 16 {
@@ -86,10 +86,10 @@ impl Encoder {
     
         let mut cipher = ChaCha20Poly1305::new(&self.key_bytes, nounce, aad);
         if cipher.decrypt(&data, &mut output[..data_len], &tag) {
-            (data_len, data_start + data_len + 16)
+            (data_len, (data_start + data_len + 16) as i32)
         }
         else{
-            (0, 0)
+            (0, -1)
         }
     }
 }

@@ -58,17 +58,14 @@ pub fn run(KEY:&'static str, SERVER_ADDR:&'static str, BIND_ADDR:&'static str,
                             break;
                         }
                     };
+
+                    buf.copy_within(offset as usize .. index, 0);
+                    index = index - (offset as usize);
                 }
-                else {
+                else if offset == -1 {
                      eprintln!("download stream decode error!");
                 }
-                if offset < index {
-                    buf.copy_within(offset..index, 0);
-                    index = index - offset;
-                }
-                else {
-                    index = 0;
-                }
+                else {} // decrypted_size ==0 && offset == 0: packet length not ok
             }
             //println!("Download stream exited...");
         });
