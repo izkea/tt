@@ -65,7 +65,12 @@ pub fn get_otp(KEY:&str, time_minutes:u64) -> u32 {
 }
 
 pub fn get_port(otp:u32, PORT_RANGE_START:u32, PORT_RANGE_END:u32) -> u32 {
-    otp % (PORT_RANGE_END - PORT_RANGE_START) + PORT_RANGE_START
+    if PORT_RANGE_START == PORT_RANGE_END {
+        PORT_RANGE_START
+    }
+    else {
+        otp % (PORT_RANGE_END - PORT_RANGE_START) + PORT_RANGE_START
+    }
 }
 
 pub fn get_time_span(otp:u32) -> u8 {
