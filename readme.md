@@ -1,5 +1,5 @@
 ## TT, The Tunnel
-A lightwight, cross-platform, secure and functional tunnel protocol (tool)
+A lightwight, cross-platform, secure and functional tunnel protocol, or tool.
 
 ----
 ### Quick Start
@@ -15,9 +15,9 @@ A lightwight, cross-platform, secure and functional tunnel protocol (tool)
 ### Roadmap / Aims
 - [x] Underlying protocol
     - [x] TCP 
-    - [ ] TCP with fastopen support
+    - [ ] TCP with fastopen
     - [ ] UDP
-- [x] Dynamic TCP/UDP port
+- [x] Dynamic port
     - [x] dynamic TCP port (HOTP)
     - [ ] dynamic UDP port (HOTP)
     - [x] dynamic port lifetime (HOTP)
@@ -39,8 +39,8 @@ A lightwight, cross-platform, secure and functional tunnel protocol (tool)
     - [ ] fake http/https server
     - [ ] fake http/https traffic from client
 - [ ] Multiple servers
-    - [ ] able to set multiple servers
-    - [ ] able to set different weight for each server
+    - [ ] support multiple servers
+    - [ ] support for setting different weight for each server
 
 ----
 ### Full Usage 
