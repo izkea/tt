@@ -20,7 +20,7 @@ enum Opt {
         KEY: String,
         #[structopt(short, long = "port-range", default_value = "1024-65535")]
         RANGE: String,
-        #[structopt(short, long, default_value = "500")]
+        #[structopt(short, long, default_value = "400")]
         MTU: usize,
 
     },
@@ -34,7 +34,7 @@ enum Opt {
         KEY: String,
         #[structopt(short, long = "port-range", default_value = "1024-65535")]
         RANGE: String,
-        #[structopt(short, long, default_value = "500")]
+        #[structopt(short, long, default_value = "400")]
         MTU: usize,
     }
 }
