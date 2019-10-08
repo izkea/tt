@@ -43,11 +43,17 @@ fn start_listener(KEY:&'static str, BIND_ADDR:&'static str, PORT_RANGE_START:u32
     let port = utils::get_port(otp, PORT_RANGE_START, PORT_RANGE_END);
     let time_span = utils::get_time_span(otp);
     let encoder = Encoder::new(KEY, otp);
-    println!("Open port : [{}], lifetime: [{}]", port, time_span);
+    println!("Bind port : [{}], lifetime: [{}]", port, time_span);
 
     let streams = Arc::new(Mutex::new(Vec::new())); 
     let flag_stop = Arc::new(Mutex::new(false));
-    let listener = net::TcpListener::bind(format!("{}:{}", BIND_ADDR, port)).unwrap();
+    let listener = match net::TcpListener::bind(format!("{}:{}", BIND_ADDR, port)) {
+        Ok(listener) => listener,
+        Err(err) => {
+            eprintln!("Error binding port: [{}], {}", port, err);
+            return
+        }
+    };
 
     /*  1. not using JobScheduler, cause it adds too much stupid code here.
      *  2. can't find a proper way to drop listener inside _timer_thread, 

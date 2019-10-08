@@ -8,7 +8,13 @@ use std::io::prelude::*;
 pub fn run(KEY:&'static str, SERVER_ADDR:&'static str, BIND_ADDR:&'static str, 
                         PORT_RANGE_START:u32, PORT_RANGE_END:u32, MTU:usize) {
 
-    let listener = net::TcpListener::bind(BIND_ADDR).unwrap();
+    let listener = match net::TcpListener::bind(BIND_ADDR){
+        Ok(listener) => listener,
+        Err(err) => {
+            eprintln!("Failed to bind [{}], {}", BIND_ADDR, err);
+            return;
+        }
+    };
     for stream in listener.incoming() {
         thread::spawn(move||{
             handle_connection(stream.unwrap(),
