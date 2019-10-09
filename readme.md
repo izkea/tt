@@ -2,12 +2,12 @@
 A lightwight, cross-platform, secure and functional tunnel protocol, or tool.
 
 ----
-### Quick Start
-#### server
+### Quick start
+#### for server
 
     tt server -k password                       # will listen on 0.0.0.0, ports range: 1024-65535
 
-#### client
+#### for client
 
     tt client -s [server addr] -k password      # will listen for socks5 connection on 127.0.0.1:1080
     
@@ -17,10 +17,11 @@ A lightwight, cross-platform, secure and functional tunnel protocol, or tool.
     - [x] TCP 
     - [ ] TCP with fastopen
     - [ ] UDP
-- [x] Dynamic port
+- [ ] Dynamic port
     - [x] dynamic TCP port (HOTP)
     - [ ] dynamic UDP port (HOTP)
     - [x] dynamic port lifetime (HOTP)
+	- [ ] **keep socks5 connection alive on server port change**
 - [x] Random padding
     - [x] random data at the beginning of payload
     - [x] dynamic length of random data
@@ -30,9 +31,12 @@ A lightwight, cross-platform, secure and functional tunnel protocol, or tool.
 - [x] Encryption
     - [x] chacha20-poly1305
     - [ ] aes-256-gcm
+- [x] Encryption block size
+	- [x] config support ('MTU' as in options)
+	- [ ] **adaptive 'MTU' according to TCP MSS**
 - [x] Binary tool
     - [x] single binary serves as both server and client, with brief options
-    - [ ] daemon mode support
+    - [ ] **daemon mode support**
 - [ ] Hook API 
     - [ ] encode/decode hook api (consider eBPF)
 - [ ] Fake traffic
