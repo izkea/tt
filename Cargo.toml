@@ -10,7 +10,7 @@ edition = "2018"
 rand = "0.7.2"
 oath = "0.10.2"
 #merino = "0.1.3"
-merino = { git = "https://github.com/the-tunnel/merino" }
+merino = { git = "https://github.com/ajmwagar/merino" }
 rust-crypto = "0.2"
 #job_scheduler = "1.0.6" 	# clokwerk is another good scheduler, able to run in background
 structopt = { version = "0.3", default-features = false }
