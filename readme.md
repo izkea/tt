@@ -32,8 +32,8 @@ A lightwight, cross-platform, secure and functional tunnel protocol, or tool.
     - [x] chacha20-poly1305
     - [ ] aes-256-gcm
 - [x] Encryption block size
-	- [x] config support ('MTU' as in options)
-	- [ ] **adaptive 'MTU' according to TCP MSS**
+	- [x] configurable max block size support ('MTU' as in options, but small MTU will be a serious traffic pattern...)
+	- [ ] **[urgent] adaptive 'MTU' according to TCP MSS**
 - [x] Binary tool
     - [x] single binary serves as both server and client, with brief options
     - [ ] **daemon mode support**
