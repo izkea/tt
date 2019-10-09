@@ -32,8 +32,7 @@ A lightwight, cross-platform, secure and functional tunnel protocol, or tool.
     - [x] chacha20-poly1305
     - [ ] aes-256-gcm
 - [x] Encryption block size
-	- [x] configurable max block size support ('MTU' as in options, intended to improve web browsing experience or performance. Will be deprecated once adaptive MTU finished, cause small MTU ends up with a serious traffic pattern)
-	- [ ] **[urgent] adaptive 'MTU' according to TCP MSS**
+	- [x] configurable max block size ('--buffer-size' as in options. Notice: less than 1400 will leave a serious traffic pattern)
 - [x] Binary tool
     - [x] single binary serves as both server and client, with brief options
     - [ ] **daemon mode support**
@@ -50,7 +49,7 @@ A lightwight, cross-platform, secure and functional tunnel protocol, or tool.
 ### Full Usage 
 #### server
 ```
-tt-server 0.1.0
+tt-server 0.1.5
 TT, The Tunnel, server side
 
 USAGE:
@@ -61,18 +60,18 @@ FLAGS:
     -V, --version    Prints version information
 
 OPTIONS:
-    -k, --key <key>               
-    -l, --listen <listen-addr>     [default: 0.0.0.0]
-    -m, --mtu <mtu>                [default: 400]
-    -r, --port-range <range>       [default: 1024-65535]
+        --buffer-size <buffer-size>     [default: 4096]
+    -k, --key <key>
+    -l, --listen <listen-addr>          [default: 0.0.0.0]
+    -r, --port-range <range>            [default: 1024-65535]
 ```
 
 #### client
 ```
-tt-client 0.1.0
+tt-client 0.1.5
 TT, The Tunnel, client side
 
-USAGE: 
+USAGE:
     tt client [OPTIONS] --key <key> --server <server>
 
 FLAGS:
@@ -80,10 +79,11 @@ FLAGS:
     -V, --version    Prints version information
 
 OPTIONS:
-    -k, --key <key>               
-    -l, --listen <listen-addr>     [default: 127.0.0.1:1080]
-    -m, --mtu <mtu>                [default: 400]
-    -r, --port-range <range>       [default: 1024-65535]
+        --buffer-size <buffer-size>     [default: 4096]
+    -k, --key <key>
+    -l, --listen <listen-addr>          [default: 127.0.0.1:1080]
+    -r, --port-range <range>            [default: 1024-65535]
     -s, --server <server>
+
 ```
 
