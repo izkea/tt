@@ -6,7 +6,7 @@ use crate::client;
 use std::io::prelude::*;
 
 pub fn run(KEY:&'static str, SERVER_ADDR:&'static str, BIND_ADDR:&'static str, 
-                        PORT_RANGE_START:u32, PORT_RANGE_END:u32, MTU:usize) {
+                        PORT_RANGE_START:u32, PORT_RANGE_END:u32, BUFFER_SIZE:usize) {
 
     let listener = match net::TcpListener::bind(BIND_ADDR){
         Ok(listener) => listener,
@@ -18,13 +18,13 @@ pub fn run(KEY:&'static str, SERVER_ADDR:&'static str, BIND_ADDR:&'static str,
     for stream in listener.incoming() {
         thread::spawn(move||{
             handle_connection(stream.unwrap(),
-                KEY, SERVER_ADDR, PORT_RANGE_START, PORT_RANGE_END, MTU);
+                KEY, SERVER_ADDR, PORT_RANGE_START, PORT_RANGE_END, BUFFER_SIZE);
         });
     }
 }
 
 pub fn handle_connection(local_stream:net::TcpStream, KEY:&'static str, SERVER_ADDR:&'static str,
-                        PORT_RANGE_START:u32, PORT_RANGE_END:u32, MTU:usize) {
+                        PORT_RANGE_START:u32, PORT_RANGE_END:u32, BUFFER_SIZE:usize) {
     let (upstream, encoder) = match client::get_stream(KEY, SERVER_ADDR, PORT_RANGE_START, PORT_RANGE_END) {
         Ok((upstream, encoder)) => (upstream, encoder),
         Err(err) => {
@@ -46,8 +46,9 @@ pub fn handle_connection(local_stream:net::TcpStream, KEY:&'static str, SERVER_A
     let _download = thread::spawn(move || {
         //std::io::copy(&mut upstream_read, &mut local_stream_write);
         let mut index: usize = 0;
-        let mut buf = vec![0u8; MTU];
-        let mut buf2 = vec![0u8; MTU];
+        let mut offset: i32;
+        let mut buf = vec![0u8; BUFFER_SIZE];
+        let mut buf2 = vec![0u8; BUFFER_SIZE];
         loop {
             index += match upstream_read.read(&mut buf[index..]) {
                 Ok(read_size) if read_size > 0 => read_size,
@@ -61,25 +62,31 @@ pub fn handle_connection(local_stream:net::TcpStream, KEY:&'static str, SERVER_A
                     break;
                 }
             };
-            let (decrypted_size, offset) = decoder.decode(&buf[..index], &mut buf2);
-            if decrypted_size > 0 {
-                match local_stream_write.write(&buf2[..decrypted_size]) {
-                    Ok(_) => (),
-                    _ => {
-                        //eprintln!("local_stream write failed");
-                        upstream_read.shutdown(net::Shutdown::Both);
-                        local_stream_write.shutdown(net::Shutdown::Both);
-                        break;
+            offset = 0;
+            loop {
+                let (decrypted_size, _offset) = decoder.decode(&buf[offset as usize..index], &mut buf2);
+                if decrypted_size > 0 {
+                    offset += _offset;
+                    match local_stream_write.write(&buf2[..decrypted_size]) {
+                        Ok(_) => (),
+                        _ => {
+                            //eprintln!("local_stream write failed");
+                            upstream_read.shutdown(net::Shutdown::Both);
+                            local_stream_write.shutdown(net::Shutdown::Both);
+                            break;
+                        }
+                    };
+                    if (index - offset as usize) < (1 + 2 + 16) {
+                        break;  // definitely not enough data to decode
                     }
-                };
-
-                buf.copy_within(offset as usize .. index, 0);
-                index = index - (offset as usize);
+                }
+                else if _offset == -1 {
+                     eprintln!("download stream decode error!");
+                }
+                else { break; } // decrypted_size ==0 && offset == 0: not enough data to decode
             }
-            else if offset == -1 {
-                 eprintln!("download stream decode error!");
-            }
-            else {} // decrypted_size ==0 && offset == 0: packet length not ok
+            buf.copy_within(offset as usize .. index, 0);
+            index = index - (offset as usize);
         }
         //println!("Download stream exited...");
     });
@@ -88,8 +95,8 @@ pub fn handle_connection(local_stream:net::TcpStream, KEY:&'static str, SERVER_A
     let _upload = thread::spawn(move || {
         //std::io::copy(&mut local_stream_read, &mut upstream_write);
         let mut index: usize;
-        let mut buf = vec![0u8;  MTU-50];
-        let mut buf2 = vec![0u8; MTU];
+        let mut buf = vec![0u8;  BUFFER_SIZE - 50];
+        let mut buf2 = vec![0u8; BUFFER_SIZE];
         loop {
             // from docs, size = 0 means EOF,
             // maybe we don't need to worry about TCP Keepalive here.

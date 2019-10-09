@@ -9,19 +9,19 @@ use crate::utils;
 use crate::server_backend_socks5;
 use crate::encoder::chacha20poly1305::Encoder;
 
-pub fn run(KEY:&'static str, BIND_ADDR:&'static str, PORT_RANGE_START:u32, PORT_RANGE_END:u32, MTU:usize) {
+pub fn run(KEY:&'static str, BIND_ADDR:&'static str, PORT_RANGE_START:u32, PORT_RANGE_END:u32, BUFFER_SIZE:usize) {
     let time_now = utils::get_secs_now() / 60;
     thread::spawn( move || server_backend_socks5::run_merino());
-    thread::spawn( move || start_listener(KEY, BIND_ADDR, PORT_RANGE_START, PORT_RANGE_END, MTU, time_now - 1));
-    thread::spawn( move || start_listener(KEY, BIND_ADDR, PORT_RANGE_START, PORT_RANGE_END, MTU, time_now    ));
-    thread::spawn( move || start_listener(KEY, BIND_ADDR, PORT_RANGE_START, PORT_RANGE_END, MTU, time_now + 1));
+    thread::spawn( move || start_listener(KEY, BIND_ADDR, PORT_RANGE_START, PORT_RANGE_END, BUFFER_SIZE, time_now - 1));
+    thread::spawn( move || start_listener(KEY, BIND_ADDR, PORT_RANGE_START, PORT_RANGE_END, BUFFER_SIZE, time_now    ));
+    thread::spawn( move || start_listener(KEY, BIND_ADDR, PORT_RANGE_START, PORT_RANGE_END, BUFFER_SIZE, time_now + 1));
 
     loop {
         thread::sleep(time::Duration::from_secs(2));
         let time_now = utils::get_secs_now();
         if time_now % 60 >= 2 { continue; };  // once a minute
         thread::spawn( move || start_listener(
-            KEY, BIND_ADDR, PORT_RANGE_START, PORT_RANGE_END, MTU, utils::get_secs_now()/60 + 1)
+            KEY, BIND_ADDR, PORT_RANGE_START, PORT_RANGE_END, BUFFER_SIZE, utils::get_secs_now()/60 + 1)
         );
     }
 
@@ -29,7 +29,7 @@ pub fn run(KEY:&'static str, BIND_ADDR:&'static str, PORT_RANGE_START:u32, PORT_
     let mut sched = JobScheduler::new();
     sched.add(Job::new("0 * * * * *".parse().unwrap(), || {
         thread::spawn( move || start_listener(
-                KEY, BIND_ADDR, PORT_RANGE_START, PORT_RANGE_END, MTU, utils::get_secs_now()/60 + 1));
+                KEY, BIND_ADDR, PORT_RANGE_START, PORT_RANGE_END, BUFFER_SIZE, utils::get_secs_now()/60 + 1));
     }));
     loop {
         sched.tick();
@@ -38,7 +38,8 @@ pub fn run(KEY:&'static str, BIND_ADDR:&'static str, PORT_RANGE_START:u32, PORT_
     */
 }
 
-fn start_listener(KEY:&'static str, BIND_ADDR:&'static str, PORT_RANGE_START:u32, PORT_RANGE_END:u32, MTU:usize, time_start:u64) {
+fn start_listener(KEY:&'static str, BIND_ADDR:&'static str, PORT_RANGE_START:u32,
+                        PORT_RANGE_END:u32, BUFFER_SIZE:usize, time_start:u64) {
     let otp = utils::get_otp(KEY, time_start);
     let port = utils::get_port(otp, PORT_RANGE_START, PORT_RANGE_END);
     let time_span = utils::get_time_span(otp);
@@ -85,7 +86,7 @@ fn start_listener(KEY:&'static str, BIND_ADDR:&'static str, PORT_RANGE_START:u32
         let stream = stream.unwrap();
         let _stream = stream.try_clone().unwrap();
         let encoder = encoder.clone();
-        thread::spawn(move||server_backend_socks5::handle_connection(_stream, encoder, MTU));
+        thread::spawn(move||server_backend_socks5::handle_connection(_stream, encoder, BUFFER_SIZE));
         streams.lock().unwrap().push(stream);
     }
     println!("Close port: [{}], lifetime: [{}]", port, time_span);

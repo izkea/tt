@@ -6,7 +6,7 @@ use merino::Merino;
 use std::io::prelude::*;
 use crate::encoder::chacha20poly1305::Encoder;
 
-pub fn handle_connection(client_stream:net::TcpStream, encoder:Encoder, MTU:usize) {
+pub fn handle_connection(client_stream:net::TcpStream, encoder:Encoder, BUFFER_SIZE:usize) {
     let upstream = net::TcpStream::connect("127.10.80.1:10801").unwrap();
     upstream.set_nodelay(true);
     client_stream.set_nodelay(true);
@@ -20,8 +20,8 @@ pub fn handle_connection(client_stream:net::TcpStream, encoder:Encoder, MTU:usiz
     // download stream
     let _download = thread::spawn(move || {
         let mut index: usize;
-        let mut buf  = vec![0u8; MTU-50];
-        let mut buf2 = vec![0u8; MTU];
+        let mut buf  = vec![0u8; BUFFER_SIZE - 50];
+        let mut buf2 = vec![0u8; BUFFER_SIZE];
         loop {
             index = match upstream_read.read(&mut buf) {
                 Ok(read_size) if read_size > 0 => read_size,
@@ -40,9 +40,10 @@ pub fn handle_connection(client_stream:net::TcpStream, encoder:Encoder, MTU:usiz
 
     // upload stream
     let _upload = thread::spawn(move || {
-        let mut index :usize = 0;
-        let mut buf  = vec![0u8; MTU];
-        let mut buf2 = vec![0u8; MTU];
+        let mut index: usize = 0;
+        let mut offset: i32;
+        let mut buf  = vec![0u8; BUFFER_SIZE];
+        let mut buf2 = vec![0u8; BUFFER_SIZE];
         loop {
             // from docs, size = 0 means EOF, 
             // maybe we don't need to worry about TCP Keepalive here.
@@ -50,19 +51,26 @@ pub fn handle_connection(client_stream:net::TcpStream, encoder:Encoder, MTU:usiz
                 Ok(read_size) if read_size > 0 => read_size,
                 _ => break,
             };
-            let (decrypted_size, offset) = decoder.decode(&buf[..index], &mut buf2);
-            if decrypted_size > 0 {
-                match upstream_write.write(&buf2[..decrypted_size]) {
-                    Ok(_) => (),
-                    Err(_) => break
-                };
-                buf.copy_within(offset as usize .. index, 0);
-                index = index - (offset as usize);
+            offset = 0;
+            loop {
+                let (decrypted_size, _offset) = decoder.decode(&buf[offset as usize..index], &mut buf2);
+                if decrypted_size > 0 {
+                    offset += _offset;
+                    match upstream_write.write(&buf2[..decrypted_size]) {
+                        Ok(_) => (),
+                        Err(_) => break
+                    };
+                    if (index - offset as usize) < (1 + 2 + 16) {
+                        break; // definitely not enough data to decode
+                    }
+                }
+                else if _offset == -1 {
+                    eprintln!("upload stream decode error!");
+                }
+                else { break; } // decrypted_size ==0 && offset == 0: not enough data to decode
             }
-            else if offset == -1 {
-                eprintln!("upload stream decode error!"); 
-            }
-            else {} // decrypted_size ==0 && offset == 0: packet length not ok
+            buf.copy_within(offset as usize .. index, 0);
+            index = index - (offset as usize);
         }
         client_stream_read.shutdown(net::Shutdown::Both);
         upstream_write.shutdown(net::Shutdown::Both);

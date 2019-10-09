@@ -20,8 +20,8 @@ enum Opt {
         KEY: String,
         #[structopt(short, long = "port-range", default_value = "1024-65535")]
         RANGE: String,
-        #[structopt(short, long, default_value = "400")]
-        MTU: usize,
+        #[structopt(long, default_value = "4096")]
+        BUFFER_SIZE: usize,
 
     },
     #[structopt(name = "client", about = "TT, The Tunnel, client side")]
@@ -34,31 +34,31 @@ enum Opt {
         KEY: String,
         #[structopt(short, long = "port-range", default_value = "1024-65535")]
         RANGE: String,
-        #[structopt(short, long, default_value = "400")]
-        MTU: usize,
+        #[structopt(long, default_value = "4096")]
+        BUFFER_SIZE: usize,
     }
 }
 
 fn main() {
     match Opt::from_args() {
-        Opt::server{ LISTEN_ADDR, KEY, RANGE, MTU } => {
-            assert!(MTU<=65536);
+        Opt::server{ LISTEN_ADDR, KEY, RANGE, BUFFER_SIZE } => {
+            assert!(BUFFER_SIZE<=65536);
             let RANGE: Vec<&str> = RANGE.split("-").collect();
             let PORT_RANGE_START = RANGE[0].parse::<u32>().unwrap();
             let PORT_RANGE_END = RANGE[1].parse::<u32>().unwrap();
             let KEY:&'static str = Box::leak(KEY.into_boxed_str());
             let LISTEN_ADDR:&'static str = Box::leak(LISTEN_ADDR.into_boxed_str());
-            server::run(KEY, LISTEN_ADDR, PORT_RANGE_START, PORT_RANGE_END, MTU);
+            server::run(KEY, LISTEN_ADDR, PORT_RANGE_START, PORT_RANGE_END, BUFFER_SIZE);
         },
-        Opt::client{ SERVER, LISTEN_ADDR, KEY, RANGE, MTU } => {
-            assert!(MTU<=65536);
+        Opt::client{ SERVER, LISTEN_ADDR, KEY, RANGE, BUFFER_SIZE } => {
+            assert!(BUFFER_SIZE<=65536);
             let RANGE: Vec<&str> = RANGE.split("-").collect();
             let PORT_RANGE_START = RANGE[0].parse::<u32>().unwrap();
             let PORT_RANGE_END = RANGE[1].parse::<u32>().unwrap();
             let KEY:&'static str = Box::leak(KEY.into_boxed_str());
             let SERVER_ADDR:&'static str = Box::leak(SERVER.into_boxed_str());
             let LISTEN_ADDR:&'static str = Box::leak(LISTEN_ADDR.into_boxed_str());
-            client_frontend_socks5::run(KEY, SERVER_ADDR, LISTEN_ADDR, PORT_RANGE_START, PORT_RANGE_END, MTU);
+            client_frontend_socks5::run(KEY, SERVER_ADDR, LISTEN_ADDR, PORT_RANGE_START, PORT_RANGE_END, BUFFER_SIZE);
         },
     }
 }
