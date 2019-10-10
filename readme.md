@@ -13,21 +13,19 @@ A lightwight, cross-platform, secure and functional tunnel protocol, or tool.
 
 ----
 ### Benchmark?
-Test Config:
-Laptop with i7-8550u, 16GB RAM
-Run: 
+Laptop with i7-8550u, 16GB RAM 
 	
-	# server side
-	tt server -k 1234 &
-	sudo nc -l -p 80 < /dev/zero &
+	# server run:
+	tt server -k 1234 &; sudo nc -l -p 80 < /dev/zero
 
-	# client side
-	tt client -s 127.0.0.1 -k 1234 & 
-	curl -x socks5://127.0.0.1:1080 127.0.0.1 >>/dev/null
+	# client run:
+	tt client -s 127.0.0.1 -k 1234 &; curl -x socks5://127.0.0.1:1080 127.0.0.1 >>/dev/null
 
 Result:
-```-m aes-256-gcm```: ~ 300MB/s
-```-m chacha20-poly1305```: ~ 200MB/s
+
+```aes-256-gcm```: ~ 300MB/s
+
+```chacha20-poly1305```: ~ 200MB/s
 
 ----
 ### Roadmap / Aims
