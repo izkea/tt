@@ -3,7 +3,7 @@ use aes_gcm::Aes256Gcm;
 use aead::{NewAead, generic_array::GenericArray};
 
 use crate::utils;
-use crate::encoder::EncoderEntityTrait;
+use crate::encoder::EncoderBasicTrait;
 
 #[derive(Clone)]
 pub struct AES256GCM {
@@ -20,9 +20,7 @@ impl AES256GCM {
             cipher: Aes256Gcm::new(GenericArray::clone_from_slice(&utils::get_key_bytes(KEY,otp))),
         }
     }
-}
 
-impl EncoderEntityTrait for AES256GCM{
     fn encode_data_size(&self, size: usize, random_bytes:&[u8]) -> [u8;2] {
         //assert!(size<=65536);
         [ 
@@ -45,9 +43,10 @@ impl EncoderEntityTrait for AES256GCM{
     fn decode_random_size(&self, random_size:u8, random_bytes_0:u8) -> usize {
         (random_size ^ (self.size_xor_bytes[(random_bytes_0 % 32) as usize])) as usize
     }
+}
 
+impl EncoderBasicTrait for AES256GCM{
     fn encode(&self, data: &mut [u8], data_len:usize) -> usize {
-//        println!("encode << data_len:{}", data_len);
         let random_bytes = utils::get_random_bytes();
         let random_size = random_bytes.len();
         let nounce = &random_bytes[ .. 12];
@@ -60,12 +59,10 @@ impl EncoderEntityTrait for AES256GCM{
         data[1 .. random_size+ 1].copy_from_slice(&random_bytes);
         data[1 + random_size .. 1 + random_size + 2].copy_from_slice(&self.encode_data_size(data_len, &random_bytes[..2]));
         data[data_start - 16 .. data_start].copy_from_slice(&tag);
-//        println!("encode >> data_len:{}", data_start + data_len);
         data_start + data_len
     }
 
     fn decode(&self, data: &mut [u8]) -> (usize, i32) {
-//        println!("decode << data_len:{}", data.len());
         let input_len = data.len();
         let random_size = self.decode_random_size(data[0], data[1]);
         if input_len <= 1 + random_size + 2 + 16 {
@@ -89,23 +86,9 @@ impl EncoderEntityTrait for AES256GCM{
     
         match self.cipher.decrypt_in_place_detached(&GenericArray::clone_from_slice(nounce), aad, data,
                         &GenericArray::clone_from_slice(&tag)) {
-            Ok(_) => {
- //               println!("decode >> data_len:{}", data_len);
-                (data_len, (data_start + data_len) as i32)
-            },
+            Ok(_) => (data_len, (data_start + data_len) as i32),
             Err(_) => (0, -1)
         }
     }
 }
 
-
-pub fn _test_encoder() {
-    let enc = AES256GCM::new("password12", 11);
-
-    let mut input = vec![0u8;1024];
-    &input[..8].copy_from_slice(&[1,2,3,4,5,6,7,8]);
-    let size = enc.encode(&mut input, 8);
-    println!("encode size:{}\nresult: {:?}", size, &input[..size]);
-    let (size, offset) = enc.decode(&mut input[..size]);
-    println!("decode size:{}\noffset:{}\nresult: {:?}", size, offset, &input[offset as usize-size .. offset as usize])
-}
