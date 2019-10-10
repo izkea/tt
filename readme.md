@@ -3,14 +3,32 @@ A lightwight, cross-platform, secure and functional tunnel protocol, or tool.
 
 ----
 ### Quick start
-#### for server
+#### server
 
     tt server -k password                       # will listen on 0.0.0.0, ports range: 1024-65535
 
-#### for client
+#### client
 
     tt client -s [server addr] -k password      # will listen for socks5 connection on 127.0.0.1:1080
-    
+
+----
+### Benchmark?
+Test Config:
+Laptop with i7-8550u, 16GB RAM
+Run: 
+	
+	# server side
+	tt server -k 1234 &
+	sudo nc -l -p 80 < /dev/zero &
+
+	# client side
+	tt client -s 127.0.0.1 -k 1234 & 
+	curl -x socks5://127.0.0.1:1080 127.0.0.1 >>/dev/null
+
+Result:
+```-m aes-256-gcm```: ~ 300MB/s
+```-m chacha20-poly1305```: ~ 200MB/s
+
 ----
 ### Roadmap / Aims
 - [x] Underlying protocol
@@ -30,7 +48,7 @@ A lightwight, cross-platform, secure and functional tunnel protocol, or tool.
     - [ ] TUN/TAP support
 - [x] Encryption
     - [x] chacha20-poly1305
-    - [ ] aes-256-gcm
+    - [x] aes-256-gcm
 - [x] Encryption block size
 	- [x] configurable max block size ('--buffer-size' as in options. Notice: less than 1400 will leave a serious traffic pattern)
 - [x] Binary tool
@@ -49,7 +67,7 @@ A lightwight, cross-platform, secure and functional tunnel protocol, or tool.
 ### Full Usage 
 #### server
 ```
-tt-server 0.1.5
+tt-server 0.2.0
 TT, The Tunnel, server side
 
 USAGE:
@@ -63,12 +81,13 @@ OPTIONS:
         --buffer-size <buffer-size>     [default: 4096]
     -k, --key <key>
     -l, --listen <listen-addr>          [default: 0.0.0.0]
+    -m, --methods <methods>             [default: chacha20-poly1305]
     -r, --port-range <range>            [default: 1024-65535]
 ```
 
 #### client
 ```
-tt-client 0.1.5
+tt-client 0.2.0
 TT, The Tunnel, client side
 
 USAGE:
@@ -82,6 +101,7 @@ OPTIONS:
         --buffer-size <buffer-size>     [default: 4096]
     -k, --key <key>
     -l, --listen <listen-addr>          [default: 127.0.0.1:1080]
+    -m, --methods <methods>             [default: chacha20-poly1305]
     -r, --port-range <range>            [default: 1024-65535]
     -s, --server <server>
 
