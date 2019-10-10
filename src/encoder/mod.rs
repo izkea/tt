@@ -6,7 +6,7 @@ pub enum EncoderMethods {
     ChaCha20
 }
 
-#[derive(Debug,Clone)]
+#[derive(Clone)]
 pub enum Encoder {
     AES256 (aes256gcm::AES256GCM),
     ChaCha20  (chacha20poly1305::ChaCha20),
@@ -14,16 +14,16 @@ pub enum Encoder {
 
 impl Encoder{
 
-    pub fn encode(&self, input: &[u8], output: &mut [u8]) -> usize {
+    pub fn encode(&self, data: &mut [u8], size: usize) -> usize {
         match self {
-            Encoder::AES256(obj) => obj.encode(input, output),
-            Encoder::ChaCha20(obj) => obj.encode(input, output),
+            Encoder::AES256(obj) => obj.encode(data, size),
+            Encoder::ChaCha20(obj) => obj.encode(data, size),
         }
     }
-    pub fn decode(&self, input: &[u8], output: &mut [u8]) -> (usize, i32) {
+    pub fn decode(&self, data: &mut [u8]) -> (usize, i32) {
         match self {
-            Encoder::AES256(obj) => obj.decode(input, output),
-            Encoder::ChaCha20(obj) => obj.decode(input, output),
+            Encoder::AES256(obj) => obj.decode(data),
+            Encoder::ChaCha20(obj) => obj.decode(data),
         }
     }
 
@@ -38,7 +38,7 @@ pub trait EncoderEntityTrait {
 
     fn decode_random_size(&self, random_size:u8, random_bytes_0:u8) -> usize;
 
-    fn encode(&self, input: &[u8], output: &mut [u8]) -> usize;
+    fn encode(&self, data: &mut [u8], size: usize) -> usize;
 
-    fn decode(&self, input: &[u8], output: &mut [u8]) -> (usize, i32);
+    fn decode(&self, data: &mut [u8]) -> (usize, i32);
 }
