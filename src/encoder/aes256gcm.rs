@@ -3,27 +3,28 @@ extern crate rand;
 extern crate crypto;
 
 use crypto::aead::*;
-use crypto::chacha20poly1305::ChaCha20Poly1305;
+use crypto::aes::KeySize;
+use crypto::aes_gcm::AesGcm;
 
 use crate::utils;
 use crate::encoder::EncoderEntityTrait;
 
 #[derive(Debug,Clone)]
-pub struct ChaCha20 {
+pub struct AES256GCM {
     key_bytes: [u8;32],
     size_xor_bytes: [u8;32],
 }
 
-impl ChaCha20 {
-    pub fn new(KEY:&'static str, otp:u32) -> ChaCha20 {
-        ChaCha20 {
+impl AES256GCM {
+    pub fn new(KEY:&'static str, otp:u32) -> AES256GCM {
+        AES256GCM {
             key_bytes:utils::get_key_bytes(KEY, otp),
             size_xor_bytes: utils::get_size_xor_bytes(KEY, otp),
         }
     }
 }
 
-impl EncoderEntityTrait for ChaCha20{
+impl EncoderEntityTrait for AES256GCM {
     fn encode_data_size(&self, size: usize, random_bytes:&[u8]) -> [u8;2] {
         //assert!(size<=65536);
         [ 
@@ -49,14 +50,16 @@ impl EncoderEntityTrait for ChaCha20{
 
     fn encode(&self, input: &[u8], output: &mut [u8]) -> usize {
         let random_bytes = utils::get_random_bytes();
-        //let nounce = &utils::md5_bytes_from_bytes(&random_bytes)[ .. 8];
-        let nounce = &random_bytes[ .. 8];
+        let mut nounce = vec![0u8; 8];
+        nounce.copy_from_slice(&random_bytes[ .. 8]);
+        nounce.append(&mut vec![0,0,0,0]);
+
         let aad = &self.key_bytes[ .. 8];
         let mut tag = vec![0u8;16];
         let data_start = 1 + random_bytes.len() + 2;
         let data_len = input.len();
 
-        let mut cipher = ChaCha20Poly1305::new(&self.key_bytes, nounce, aad);
+        let mut cipher = AesGcm::new(KeySize::KeySize256, &self.key_bytes, &nounce, aad);
         cipher.encrypt(&input, &mut output[data_start..data_start+data_len], &mut tag);
 
         output[0] = self.encode_random_size(&random_bytes);
@@ -81,12 +84,14 @@ impl EncoderEntityTrait for ChaCha20{
         }
 
         //let nounce = &utils::md5_bytes_from_bytes(random_bytes)[ .. 8];
-        let nounce = &random_bytes[..8];
+        let mut nounce = vec![0u8; 8];
+        nounce.copy_from_slice(&random_bytes[ .. 8]);
+        nounce.append(&mut vec![0,0,0,0]);
         let data = &input[data_start .. data_start + data_len];
         let tag = &input[data_start + data_len .. data_start + data_len + 16];
         let aad = &self.key_bytes[ .. 8];
     
-        let mut cipher = ChaCha20Poly1305::new(&self.key_bytes, nounce, aad);
+        let mut cipher = AesGcm::new(KeySize::KeySize256, &self.key_bytes, &nounce, aad);
         if cipher.decrypt(&data, &mut output[..data_len], &tag) {
             (data_len, (data_start + data_len + 16) as i32)
         }
@@ -95,17 +100,3 @@ impl EncoderEntityTrait for ChaCha20{
         }
     }
 }
-
-
-pub fn _test_encoder() {
-    let input = [1,2,3,4,19,94];
-    let enc = ChaCha20::new("password12", 11);
-
-    let mut output = vec![0u8;1024];
-    let mut output2 = vec![0u8;1024];
-    let size = enc.encode(&input, &mut output);
-    println!("encode2 size:{}\nresult: {:?}", size, &output[..size]);
-    let (size, offset) = enc.decode(&output[..size], &mut output2);
-    println!("decode2 size:{}\noffset:{}\nresult: {:?}", size, offset, &output2[..size])
-}
-

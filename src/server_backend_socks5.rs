@@ -4,7 +4,7 @@ use std::net;
 use std::thread;
 use merino::Merino;
 use std::io::prelude::*;
-use crate::encoder::chacha20poly1305::Encoder;
+use crate::encoder::{Encoder};
 
 pub fn handle_connection(client_stream:net::TcpStream, encoder:Encoder, BUFFER_SIZE:usize) {
     let upstream = net::TcpStream::connect("127.10.80.1:10801").unwrap();

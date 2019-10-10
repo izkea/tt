@@ -4,9 +4,10 @@ use std::net;
 use std::thread;
 use crate::client;
 use std::io::prelude::*;
+use crate::encoder::EncoderMethods;
 
-pub fn run(KEY:&'static str, SERVER_ADDR:&'static str, BIND_ADDR:&'static str, 
-                        PORT_RANGE_START:u32, PORT_RANGE_END:u32, BUFFER_SIZE:usize) {
+pub fn run(KEY:&'static str, METHOD:&'static EncoderMethods, SERVER_ADDR:&'static str, 
+    BIND_ADDR:&'static str, PORT_RANGE_START:u32, PORT_RANGE_END:u32, BUFFER_SIZE:usize) {
 
     let listener = match net::TcpListener::bind(BIND_ADDR){
         Ok(listener) => listener,
@@ -18,21 +19,23 @@ pub fn run(KEY:&'static str, SERVER_ADDR:&'static str, BIND_ADDR:&'static str,
     for stream in listener.incoming() {
         thread::spawn(move||{
             handle_connection(stream.unwrap(),
-                KEY, SERVER_ADDR, PORT_RANGE_START, PORT_RANGE_END, BUFFER_SIZE);
+                KEY, METHOD, SERVER_ADDR, 
+                PORT_RANGE_START, PORT_RANGE_END, BUFFER_SIZE);
         });
     }
 }
 
-pub fn handle_connection(local_stream:net::TcpStream, KEY:&'static str, SERVER_ADDR:&'static str,
-                        PORT_RANGE_START:u32, PORT_RANGE_END:u32, BUFFER_SIZE:usize) {
-    let (upstream, encoder) = match client::get_stream(KEY, SERVER_ADDR, PORT_RANGE_START, PORT_RANGE_END) {
+pub fn handle_connection(local_stream:net::TcpStream, KEY:&'static str, METHOD:&'static EncoderMethods,
+                        SERVER_ADDR:&'static str, PORT_RANGE_START:u32, 
+                        PORT_RANGE_END:u32, BUFFER_SIZE:usize,) {
+    let (upstream, encoder) = match client::get_stream(KEY, METHOD, SERVER_ADDR, 
+                                            PORT_RANGE_START, PORT_RANGE_END) {
         Ok((upstream, encoder)) => (upstream, encoder),
         Err(err) => {
             eprintln!("Error: Failed to connect to server, {}", err);
             return;
         }
     };
-
     local_stream.set_nodelay(true);
     upstream.set_nodelay(true);
 

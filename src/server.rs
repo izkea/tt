@@ -7,21 +7,24 @@ use std::sync::{Arc, Mutex};
 
 use crate::utils;
 use crate::server_backend_socks5;
-use crate::encoder::chacha20poly1305::Encoder;
+use crate::encoder::{Encoder, EncoderMethods};
+use crate::encoder::aes256gcm::AES256GCM;
+use crate::encoder::chacha20poly1305::ChaCha20;
 
-pub fn run(KEY:&'static str, BIND_ADDR:&'static str, PORT_RANGE_START:u32, PORT_RANGE_END:u32, BUFFER_SIZE:usize) {
+pub fn run(KEY:&'static str, METHOD:&'static EncoderMethods, BIND_ADDR:&'static str, 
+                PORT_RANGE_START:u32, PORT_RANGE_END:u32, BUFFER_SIZE:usize) {
     let time_now = utils::get_secs_now() / 60;
     thread::spawn( move || server_backend_socks5::run_merino());
-    thread::spawn( move || start_listener(KEY, BIND_ADDR, PORT_RANGE_START, PORT_RANGE_END, BUFFER_SIZE, time_now - 1));
-    thread::spawn( move || start_listener(KEY, BIND_ADDR, PORT_RANGE_START, PORT_RANGE_END, BUFFER_SIZE, time_now    ));
-    thread::spawn( move || start_listener(KEY, BIND_ADDR, PORT_RANGE_START, PORT_RANGE_END, BUFFER_SIZE, time_now + 1));
+    thread::spawn( move || start_listener(KEY, METHOD, BIND_ADDR, PORT_RANGE_START, PORT_RANGE_END, BUFFER_SIZE, time_now - 1));
+    thread::spawn( move || start_listener(KEY, METHOD, BIND_ADDR, PORT_RANGE_START, PORT_RANGE_END, BUFFER_SIZE, time_now    ));
+    thread::spawn( move || start_listener(KEY, METHOD, BIND_ADDR, PORT_RANGE_START, PORT_RANGE_END, BUFFER_SIZE, time_now + 1));
 
     loop {
         thread::sleep(time::Duration::from_secs(2));
         let time_now = utils::get_secs_now();
         if time_now % 60 >= 2 { continue; };  // once a minute
         thread::spawn( move || start_listener(
-            KEY, BIND_ADDR, PORT_RANGE_START, PORT_RANGE_END, BUFFER_SIZE, utils::get_secs_now()/60 + 1)
+            KEY, METHOD, BIND_ADDR, PORT_RANGE_START, PORT_RANGE_END, BUFFER_SIZE, utils::get_secs_now()/60 + 1)
         );
     }
 
@@ -38,12 +41,15 @@ pub fn run(KEY:&'static str, BIND_ADDR:&'static str, PORT_RANGE_START:u32, PORT_
     */
 }
 
-fn start_listener(KEY:&'static str, BIND_ADDR:&'static str, PORT_RANGE_START:u32,
-                        PORT_RANGE_END:u32, BUFFER_SIZE:usize, time_start:u64) {
+fn start_listener(KEY:&'static str, METHOD:&EncoderMethods, BIND_ADDR:&'static str, 
+        PORT_RANGE_START:u32, PORT_RANGE_END:u32, BUFFER_SIZE:usize, time_start:u64) {
     let otp = utils::get_otp(KEY, time_start);
     let port = utils::get_port(otp, PORT_RANGE_START, PORT_RANGE_END);
     let time_span = utils::get_time_span(otp);
-    let encoder = Encoder::new(KEY, otp);
+    let encoder = match METHOD {
+        EncoderMethods::AES256 => Encoder::AES256(AES256GCM::new(KEY, otp)),
+        EncoderMethods::ChaCha20 => Encoder::ChaCha20(ChaCha20::new(KEY, otp)),
+    };
     println!("Bind port : [{}], lifetime: [{}]", port, time_span);
 
     let streams = Arc::new(Mutex::new(Vec::new())); 

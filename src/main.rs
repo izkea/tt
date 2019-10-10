@@ -1,5 +1,6 @@
 #![allow(non_snake_case)]
 #![allow(non_camel_case_types)]
+use std::process;
 use structopt::StructOpt;
 
 mod utils;
@@ -8,6 +9,8 @@ mod client;
 mod encoder;
 mod server_backend_socks5;
 mod client_frontend_socks5;
+
+use encoder::EncoderMethods;
 
 #[derive(StructOpt, Debug)]
 #[structopt(name = "TT", about = "TT, The Tunnel")]
@@ -18,6 +21,8 @@ enum Opt {
         LISTEN_ADDR: String,
         #[structopt(short = "k", long = "key")]
         KEY: String,
+        #[structopt(short, long, default_value = "chacha20-poly1305")]
+        METHODS: String,
         #[structopt(short, long = "port-range", default_value = "1024-65535")]
         RANGE: String,
         #[structopt(long, default_value = "4096")]
@@ -32,6 +37,8 @@ enum Opt {
         LISTEN_ADDR: String,
         #[structopt(short = "k", long = "key")]
         KEY: String,
+        #[structopt(short, long, default_value = "chacha20-poly1305")]
+        METHODS: String,
         #[structopt(short, long = "port-range", default_value = "1024-65535")]
         RANGE: String,
         #[structopt(long, default_value = "4096")]
@@ -41,16 +48,24 @@ enum Opt {
 
 fn main() {
     match Opt::from_args() {
-        Opt::server{ LISTEN_ADDR, KEY, RANGE, BUFFER_SIZE } => {
+        Opt::server{ LISTEN_ADDR, KEY, METHODS, RANGE, BUFFER_SIZE } => {
             assert!(BUFFER_SIZE<=65536);
             let RANGE: Vec<&str> = RANGE.split("-").collect();
             let PORT_RANGE_START = RANGE[0].parse::<u32>().unwrap();
             let PORT_RANGE_END = RANGE[1].parse::<u32>().unwrap();
             let KEY:&'static str = Box::leak(KEY.into_boxed_str());
             let LISTEN_ADDR:&'static str = Box::leak(LISTEN_ADDR.into_boxed_str());
-            server::run(KEY, LISTEN_ADDR, PORT_RANGE_START, PORT_RANGE_END, BUFFER_SIZE);
+            let METHODS = match METHODS.as_ref() {
+                "aes-256-gcm" => &EncoderMethods::AES256,
+                "chacha20-poly1305" => &EncoderMethods::ChaCha20,
+                _ => {
+                    eprintln!("Methods [{}] not supported!", METHODS);
+                    process::exit(-1);
+                }
+            };
+            server::run(KEY, METHODS, LISTEN_ADDR, PORT_RANGE_START, PORT_RANGE_END, BUFFER_SIZE);
         },
-        Opt::client{ SERVER, LISTEN_ADDR, KEY, RANGE, BUFFER_SIZE } => {
+        Opt::client{ SERVER, LISTEN_ADDR, KEY, METHODS, RANGE, BUFFER_SIZE } => {
             assert!(BUFFER_SIZE<=65536);
             let RANGE: Vec<&str> = RANGE.split("-").collect();
             let PORT_RANGE_START = RANGE[0].parse::<u32>().unwrap();
@@ -58,7 +73,15 @@ fn main() {
             let KEY:&'static str = Box::leak(KEY.into_boxed_str());
             let SERVER_ADDR:&'static str = Box::leak(SERVER.into_boxed_str());
             let LISTEN_ADDR:&'static str = Box::leak(LISTEN_ADDR.into_boxed_str());
-            client_frontend_socks5::run(KEY, SERVER_ADDR, LISTEN_ADDR, PORT_RANGE_START, PORT_RANGE_END, BUFFER_SIZE);
+            let METHODS = match METHODS.as_ref() {
+                "aes-256-gcm" => &EncoderMethods::AES256,
+                "chacha20-poly1305" => &EncoderMethods::ChaCha20,
+                _ => {
+                    eprintln!("Methods [{}] not supported!", METHODS);
+                    process::exit(-1);
+                }
+            };
+            client_frontend_socks5::run(KEY, METHODS, SERVER_ADDR, LISTEN_ADDR, PORT_RANGE_START, PORT_RANGE_END, BUFFER_SIZE);
         },
     }
 }
