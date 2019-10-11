@@ -29,10 +29,6 @@ Result:
 
 ----
 ### Roadmap / Aims
-- [x] Underlying protocol
-    - [x] TCP 
-    - [ ] TCP with fastopen
-    - [ ] UDP
 - [ ] Dynamic port
     - [x] dynamic TCP port (HOTP)
     - [ ] dynamic UDP port (HOTP)
@@ -41,6 +37,12 @@ Result:
 - [x] Random padding
     - [x] random data at the beginning of payload
     - [x] dynamic length of random data
+- [ ] Replay attack proof
+	- [ ] use port+counter as AEAD additional data
+- [x] Underlying protocol
+    - [x] TCP
+    - [ ] TCP with fastopen
+    - [ ] UDP
 - [x] Proxy & tunnels 
     - [x] socks5 proxy (use merino for now, need to implement one inside tt)
     - [ ] TUN/TAP support
@@ -48,7 +50,7 @@ Result:
     - [x] chacha20-poly1305
     - [x] aes-256-gcm
 - [x] Encryption block size
-	- [x] configurable max block size ('--buffer-size' as in options. Notice: less than 1400 will leave a serious traffic pattern)
+	- [x] configurable max block size ('--buffer-size', WARNING: less than 1400 will leave a serious traffic pattern)
 - [x] Binary tool
     - [x] single binary serves as both server and client, with brief options
     - [ ] **daemon mode support**
