@@ -44,7 +44,7 @@ Result:
     - [ ] TCP with fastopen
     - [ ] UDP
 - [x] Proxy & tunnels 
-    - [x] socks5 proxy (use merino for now, need to implement one inside tt)
+    - [x] socks5 proxy(only CONNECT command suppported)
     - [ ] TUN/TAP support
 - [x] Encryption
     - [x] chacha20-poly1305
