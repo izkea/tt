@@ -14,7 +14,7 @@ use crate::encoder::chacha20poly1305::ChaCha20;
 pub fn run(KEY:&'static str, METHOD:&'static EncoderMethods, BIND_ADDR:&'static str, 
                 PORT_RANGE_START:u32, PORT_RANGE_END:u32, BUFFER_SIZE:usize) {
     let time_now = utils::get_secs_now() / 60;
-    thread::spawn( move || server_backend_socks5::run_merino());
+//    thread::spawn( move || server_backend_socks5::run_merino());
     thread::spawn( move || start_listener(KEY, METHOD, BIND_ADDR, PORT_RANGE_START, PORT_RANGE_END, BUFFER_SIZE, time_now - 1));
     thread::spawn( move || start_listener(KEY, METHOD, BIND_ADDR, PORT_RANGE_START, PORT_RANGE_END, BUFFER_SIZE, time_now    ));
     thread::spawn( move || start_listener(KEY, METHOD, BIND_ADDR, PORT_RANGE_START, PORT_RANGE_END, BUFFER_SIZE, time_now + 1));
