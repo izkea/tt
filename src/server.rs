@@ -89,8 +89,14 @@ fn start_listener(KEY:&'static str, METHOD:&EncoderMethods, BIND_ADDR:&'static s
             drop(listener); 
             break; 
         };
-        let stream = stream.unwrap();
-        let _stream = stream.try_clone().unwrap();
+        let stream = match stream {
+            Ok(stream) => stream,
+            Err(_) => continue                      // try not to panic on error "Too many open files"
+        };
+        let _stream = match stream.try_clone() {
+            Ok(_stream) => _stream,
+            Err(_) => continue,                     // same as above
+        };
         let encoder = encoder.clone();
         thread::spawn(move||server_backend_socks5::handle_connection(_stream, encoder, BUFFER_SIZE));
         streams.lock().unwrap().push(stream);
