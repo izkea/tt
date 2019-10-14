@@ -3,6 +3,7 @@ extern crate oath;
 extern crate rand;
 extern crate sha2;
 
+use rand::Rng;
 use std::time;
 use sha2::{Sha256, Digest};
 
@@ -32,10 +33,11 @@ pub fn get_size_xor_bytes(key:&str, otp:u32) -> [u8;32] {
 }
 
 pub fn get_random_bytes() -> Vec<u8> {
-    let mut length = rand::random::<usize>() % 20 + 12;
+    let mut rng = rand::thread_rng();
+    let mut length = rng.gen_range(12, 33);
     let mut result = Vec::with_capacity(length);
     while length > 0  {
-        result.push(rand::random::<u8>());
+        result.push(rng.gen::<u8>());
         length -= 1;
     };
     result
