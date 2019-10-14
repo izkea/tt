@@ -16,6 +16,7 @@ rustflags = ["-C", "link-args=-lpthread -ldl"]    # fix the missing linking args
 
 [target.mipsel-unknown-linux-musl]
 linker = "mipsel-linux-gnu-gcc"
+rustflags = ["-C", "link-args=-lpthread -ldl"]    # fix the missing linking args when cargo build...
 
 [target.arm-linux-androideabi]
 linker = "/path/to/android-ndk/stand_alone_arm/bin/arm-linux-androideabi-gcc"
