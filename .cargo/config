@@ -10,14 +10,13 @@ linker = "arm-linux-gnueabi-gcc"
 [target.arm-unknown-linux-musleabihf]
 linker = "arm-linux-gnueabihf-gcc"
 
-[target.mips-unknown-linux-musl]
-linker = "mips-linux-gnu-gcc"					  # Cause libbacktrace uses cc-rs, and cc-rs does not support mips+musl,
-												  # we have to set env CC=mips-linux-gnu-gcc cargo build ...
-rustflags = ["-C", "link-args=-lpthread -ldl"]    # Fix the missing linking args on cargo build
+#[target.mips-unknown-linux-musl]
+#linker = "mips-linux-gnu-gcc"
+#rustflags = ["-C", "link-args=-lpthread -ldl"]    # Fix the missing linking args on cargo build
 
-[target.mipsel-unknown-linux-musl]
-linker = "mipsel-linux-gnu-gcc"					  # Same here, set env CC=mipsel-linux-gnu-gcc
-rustflags = ["-C", "link-args=-lpthread -ldl"]    # Fix the missing linking args on cargo build...
+#[target.mipsel-unknown-linux-musl]
+#linker = "mipsel-linux-gnu-gcc"
+#rustflags = ["-C", "link-args=-lpthread -ldl"]    # Fix the missing linking args on cargo build
 
 [target.arm-linux-androideabi]
 linker = "/path/to/android-ndk/stand_alone_arm/bin/arm-linux-androideabi-gcc"
@@ -30,3 +29,15 @@ rustflags = ["-C", "target-cpu=sandybridge", "-C", "target-feature=+aes,+sse2,+s
 
 [target.x86_64-apple-darwin]
 rustflags = ["-C", "target-cpu=sandybridge", "-C", "target-feature=+aes,+sse2,+sse4.1,+ssse3"]
+
+
+
+## Build for openwrt mips, we shall use something like mips-openwrt-linux-gcc from OpenWRT SDK,
+## Also, cause libbacktrace uses cc-rs, and cc-rs does not support mips+musl, we have to set env CC=....
+## Command:
+##		STAGING_DIR=/path/to/openwrt-sdk-18.06.2-ar71xx-generic_gcc-7.3.0_musl.Linux-x86_64/staging_dir \
+##		CC=$STAGING_DIR/toolchain-mips_24kc_gcc-7.3.0_musl/bin/mips-openwrt-linux-gcc \
+##		cargo build --release --target=mips-unknown-linux-musl
+
+[target.mips-unknown-linux-musl]
+linker = "/path/to/openwrt-sdk-18.06.2-ar71xx-generic_gcc-7.3.0_musl.Linux-x86_64/staging_dir/toolchain-mips_24kc_gcc-7.3.0_musl/bin/mips-openwrt-linux-gcc"
