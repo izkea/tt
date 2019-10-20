@@ -73,7 +73,7 @@ fn handle_tun_data(tun_fd: i32, KEY:&'static str, METHOD:&'static EncoderMethods
                 _ => {
                     //eprintln!("upstream read failed");
                     // try to restore connection, and without 'first_packet', retry forever
-                    let server_new = match client::tun_get_stream(KEY, METHOD, SERVER_ADDR, PORT_START, PORT_END, &[], 0){
+                    let server_new = match client::tun_get_stream(KEY, METHOD, SERVER_ADDR, PORT_START, PORT_END, first_packet, 0){
                         Some((stream, encoder)) => Server {stream, encoder},
                         None => continue
                     };
