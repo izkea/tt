@@ -13,7 +13,7 @@ A lightwight, cross-platform, secure and functional tunnel protocol, or tool.
 
 ----
 ### Benchmark?
-Laptop with i7-8550u, 16GB RAM 
+Laptop: i7-8550U(max 4GHz), 16GB LPDDR3 2133 RAM 
 	
 	# server run:
 	tt server -k 1234 &; sudo nc -l -p 80 < /dev/zero
@@ -29,11 +29,10 @@ Result:
 
 ----
 ### Roadmap / Aims
-- [ ] Dynamic port
+- [x] Port jumping
     - [x] dynamic TCP port (HOTP)
     - [ ] dynamic UDP port (HOTP)
     - [x] dynamic port lifetime (HOTP)
-	- [ ] **keep socks5 connection alive on server port change**
 - [x] Random padding
     - [x] random data at the beginning of payload
     - [x] dynamic length of random data
@@ -45,7 +44,7 @@ Result:
     - [ ] UDP
 - [x] Proxy & tunnels 
     - [x] socks5 proxy(only CONNECT command suppported)
-    - [ ] TUN/TAP support
+    - [x] TUN/TAP support
 - [x] Encryption
     - [x] chacha20-poly1305
     - [x] aes-256-gcm
@@ -67,7 +66,7 @@ Result:
 ### Full Usage 
 #### server
 ```
-tt-server 0.2.0
+tt-server 0.3.0
 TT, The Tunnel, server side
 
 USAGE:
@@ -83,11 +82,12 @@ OPTIONS:
     -l, --listen <listen-addr>          [default: 0.0.0.0]
     -m, --methods <methods>             [default: chacha20-poly1305]
     -r, --port-range <range>            [default: 1024-65535]
+        --tun-ip <tun-ip>
 ```
 
 #### client
 ```
-tt-client 0.2.0
+tt-client 0.3.0
 TT, The Tunnel, client side
 
 USAGE:
@@ -104,6 +104,6 @@ OPTIONS:
     -m, --methods <methods>             [default: chacha20-poly1305]
     -r, --port-range <range>            [default: 1024-65535]
     -s, --server <server>
-
+        --tun-ip <tun-ip>
 ```
 
