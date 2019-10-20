@@ -7,7 +7,7 @@ use std::io::prelude::*;
 use crate::encoder::EncoderMethods;
 
 pub fn run(KEY:&'static str, METHOD:&'static EncoderMethods, SERVER_ADDR:&'static str, 
-    BIND_ADDR:&'static str, PORT_RANGE_START:u32, PORT_RANGE_END:u32, BUFFER_SIZE:usize) {
+    BIND_ADDR:&'static str, PORT_START:u32, PORT_END:u32, BUFFER_SIZE:usize) {
 
     let listener = match net::TcpListener::bind(BIND_ADDR){
         Ok(listener) => listener,
@@ -20,16 +20,15 @@ pub fn run(KEY:&'static str, METHOD:&'static EncoderMethods, SERVER_ADDR:&'stati
         thread::spawn(move||{
             handle_connection(stream.unwrap(),
                 KEY, METHOD, SERVER_ADDR, 
-                PORT_RANGE_START, PORT_RANGE_END, BUFFER_SIZE);
+                PORT_START, PORT_END, BUFFER_SIZE);
         });
     }
 }
 
-pub fn handle_connection(local_stream:net::TcpStream, KEY:&'static str, METHOD:&'static EncoderMethods,
-                        SERVER_ADDR:&'static str, PORT_RANGE_START:u32, 
-                        PORT_RANGE_END:u32, BUFFER_SIZE:usize,) {
-    let (upstream, encoder) = match client::get_stream(KEY, METHOD, SERVER_ADDR, 
-                                            PORT_RANGE_START, PORT_RANGE_END) {
+pub fn handle_connection(local_stream:net::TcpStream, KEY:&'static str, 
+                        METHOD:&'static EncoderMethods, SERVER_ADDR:&'static str, 
+                        PORT_START:u32, PORT_END:u32, BUFFER_SIZE:usize,) {
+    let (upstream, encoder) = match client::get_stream(KEY, METHOD, 0, SERVER_ADDR, PORT_START, PORT_END) {
         Ok((upstream, encoder)) => (upstream, encoder),
         Err(err) => {
             eprintln!("Error: Failed to connect to server, {}", err);
@@ -87,7 +86,7 @@ pub fn handle_connection(local_stream:net::TcpStream, KEY:&'static str, METHOD:&
                      offset = -1;
                      break;
                 }
-                else { break; } // decrypted_size ==0 && offset == 0: not enough data to decode
+                else { break; } // decrypted_size ==0 && offset != -1: not enough data to decode
             }
             if offset == -1 {break;}
             buf.copy_within(offset as usize .. index, 0);

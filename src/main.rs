@@ -7,6 +7,8 @@ mod utils;
 mod server;
 mod client;
 mod encoder;
+mod server_backend_tun;
+mod client_frontend_tun;
 mod server_backend_socks5;
 mod client_frontend_socks5;
 
@@ -27,6 +29,8 @@ enum Opt {
         RANGE: String,
         #[structopt(long, default_value = "4096")]
         BUFFER_SIZE: usize,
+        #[structopt(long)]
+        TUN_IP: Option<String>,
 
     },
     #[structopt(name = "client", about = "TT, The Tunnel, client side")]
@@ -43,12 +47,14 @@ enum Opt {
         RANGE: String,
         #[structopt(long, default_value = "4096")]
         BUFFER_SIZE: usize,
+        #[structopt(long, conflicts_with = "listen-addr")]
+        TUN_IP: Option<String>,
     }
 }
 
 fn main() {
     match Opt::from_args() {
-        Opt::server{ LISTEN_ADDR, KEY, METHODS, RANGE, BUFFER_SIZE } => {
+        Opt::server{ LISTEN_ADDR, KEY, METHODS, RANGE, BUFFER_SIZE, TUN_IP } => {
             assert!(BUFFER_SIZE<=65536);
             let RANGE: Vec<&str> = RANGE.split("-").collect();
             let PORT_RANGE_START = RANGE[0].parse::<u32>().unwrap();
@@ -63,9 +69,9 @@ fn main() {
                     process::exit(-1);
                 }
             };
-            server::run(KEY, METHODS, LISTEN_ADDR, PORT_RANGE_START, PORT_RANGE_END, BUFFER_SIZE);
+            server::run(KEY, METHODS, LISTEN_ADDR, PORT_RANGE_START, PORT_RANGE_END, BUFFER_SIZE, TUN_IP);
         },
-        Opt::client{ SERVER, LISTEN_ADDR, KEY, METHODS, RANGE, BUFFER_SIZE } => {
+        Opt::client{ SERVER, LISTEN_ADDR, KEY, METHODS, RANGE, BUFFER_SIZE, TUN_IP } => {
             assert!(BUFFER_SIZE<=65536);
             let RANGE: Vec<&str> = RANGE.split("-").collect();
             let PORT_RANGE_START = RANGE[0].parse::<u32>().unwrap();
@@ -81,7 +87,7 @@ fn main() {
                     process::exit(-1);
                 }
             };
-            client_frontend_socks5::run(KEY, METHODS, SERVER_ADDR, LISTEN_ADDR, PORT_RANGE_START, PORT_RANGE_END, BUFFER_SIZE);
+            client::run(KEY, METHODS, SERVER_ADDR, LISTEN_ADDR, PORT_RANGE_START, PORT_RANGE_END, BUFFER_SIZE, TUN_IP);
         },
     }
 }

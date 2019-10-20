@@ -7,6 +7,8 @@ use rand::Rng;
 use std::time;
 use sha2::{Sha256, Digest};
 
+pub mod tun_fd;
+
 pub fn get_secs_now() -> u64 {
     let sys_time = time::SystemTime::now().duration_since(time::UNIX_EPOCH).unwrap();
     sys_time.as_secs()
@@ -56,6 +58,6 @@ pub fn get_port(otp:u32, PORT_RANGE_START:u32, PORT_RANGE_END:u32) -> u32 {
     }
 }
 
-pub fn get_time_span(otp:u32) -> u8 {
+pub fn get_lifetime(otp:u32) -> u8 {
     (otp % 15 + 1) as u8
 }

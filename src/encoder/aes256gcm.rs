@@ -65,8 +65,12 @@ impl EncoderBasicTrait for AES256GCM{
     fn decode(&self, data: &mut [u8]) -> (usize, i32) {
         let input_len = data.len();
         let random_size = self.decode_random_size(data[0], data[1]);
-        if input_len <= 1 + random_size + 2 + 16 {
-            return (0, 0)
+        let left_shall_be_read:i32 = (1 + random_size + 2 + 16) as i32 - (input_len as i32);
+        if left_shall_be_read > 33 {
+            return (0, -1)
+        }
+        else if left_shall_be_read > 0 {
+            return (0, left_shall_be_read)
         }
 
         let mut random_bytes = vec![0u8; random_size]; 
@@ -74,8 +78,12 @@ impl EncoderBasicTrait for AES256GCM{
 
         let data_start = 1 + random_size + 2 + 16;
         let data_len = self.decode_data_size(&data[1+random_size..1+random_size+2], &random_bytes[..2]);
-        if input_len < 1 + random_size + 2 + 16 + data_len {
-            return (0, 0)
+        let left_shall_be_read: i32 = (1 + random_size + 2 + 16 + data_len) as i32 - (input_len as i32);
+        if left_shall_be_read > 4096 {
+            return (0, -1)
+        }
+        else if left_shall_be_read > 0  {
+            return (0, left_shall_be_read)
         }
 
         let nounce = &random_bytes[..12];
