@@ -79,7 +79,6 @@ pub fn handle_connection(connection_rx: mpsc::Receiver<(TcpStream, Encoder)>,
 
     for (mut stream, encoder) in connection_rx {
         // thread: accept connection and write to channel
-        stream.set_nodelay(true);
         let _clients = clients.clone();
         let _tun_tx = tun_tx.clone();
         let _upload = thread::spawn(move || {

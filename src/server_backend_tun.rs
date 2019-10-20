@@ -75,7 +75,6 @@ pub fn handle_connection(connection_rx: mpsc::Receiver<(TcpStream, Encoder)>,
     let raw_fd: i32 = tun_writer.as_raw_fd();
     for (mut stream, encoder) in connection_rx {
         // thread: accept connection and write to channel
-        stream.set_nodelay(true);
         let _clients = clients.clone();
         let mut _tun_writer = tun_fd::TunFd::new(raw_fd);
         let _upload = thread::spawn(move || {
