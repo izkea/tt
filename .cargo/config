@@ -11,12 +11,13 @@ linker = "arm-linux-gnueabi-gcc"
 linker = "arm-linux-gnueabihf-gcc"
 
 [target.mips-unknown-linux-musl]
-linker = "mips-linux-gnu-gcc"
-rustflags = ["-C", "link-args=-lpthread -ldl"]    # fix the missing linking args when cargo build...
+linker = "mips-linux-gnu-gcc"					  # Cause libbacktrace uses cc-rs, and cc-rs does not support mips+musl,
+												  # we have to set env CC=mips-linux-gnu-gcc cargo build ...
+rustflags = ["-C", "link-args=-lpthread -ldl"]    # Fix the missing linking args on cargo build
 
 [target.mipsel-unknown-linux-musl]
-linker = "mipsel-linux-gnu-gcc"
-rustflags = ["-C", "link-args=-lpthread -ldl"]    # fix the missing linking args when cargo build...
+linker = "mipsel-linux-gnu-gcc"					  # Same here, set env CC=mipsel-linux-gnu-gcc
+rustflags = ["-C", "link-args=-lpthread -ldl"]    # Fix the missing linking args on cargo build...
 
 [target.arm-linux-androideabi]
 linker = "/path/to/android-ndk/stand_alone_arm/bin/arm-linux-androideabi-gcc"
