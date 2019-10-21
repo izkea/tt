@@ -152,7 +152,6 @@ pub fn handle_connection(connection_rx: mpsc::Receiver<(TcpStream, Encoder)>,
                     let (data_len, _offset) = decoder.decode(&mut buf[offset as usize..index]);
                     if data_len > 0 {
                         offset += _offset;
-                        let data = &buf[offset as usize - data_len .. offset as usize];
                         #[cfg(target_os = "macos")]
                         {
                             buf2[..4].copy_from_slice(&[0,0,0,2]);
@@ -161,7 +160,7 @@ pub fn handle_connection(connection_rx: mpsc::Receiver<(TcpStream, Encoder)>,
                         }
                         #[cfg(target_os = "linux")]
                         {
-                            _tun_writer.write(data).unwrap();
+                            _tun_writer.write(&buf[offset as usize - data_len .. offset as usize]).unwrap();
                         }
                         if (index - offset as usize) < (1 + 12 + 2 + 16) {
                             break; // definitely not enough data to decode
