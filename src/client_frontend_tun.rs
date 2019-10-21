@@ -8,27 +8,29 @@ use std::sync::{Arc, Mutex};
 use std::os::unix::io::IntoRawFd;
 
 use tun::Device;
-use tun::configure;
-use tun::platform::linux;
-
 use crate::utils;
 use crate::client;
 use crate::encoder::Encoder;
 use crate::encoder::EncoderMethods;
 
+#[cfg(target_os = "linux")]
+static STRIP_HEADER_LEN: usize = 0;
+#[cfg(target_os = "macos")]
+static STRIP_HEADER_LEN: usize = 4;
+
 pub fn run(KEY:&'static str, METHOD:&'static EncoderMethods, SERVER_ADDR:&'static str, 
             PORT_START:u32, PORT_END:u32, BUFFER_SIZE:usize, tun_ip: &str) {
 
-    let mut conf = configure();
-    conf.address(tun_ip);
-    conf.netmask("255.255.255.0");
-    conf.mtu((BUFFER_SIZE-60) as i32);
+    let mut conf = tun::Configuration::default();
+    conf.address(tun_ip)
+        .netmask("255.255.255.0")
+        .mtu((BUFFER_SIZE-60) as i32)
+        .up();
 
-    let mut iface = linux::create(&conf).unwrap_or_else(|_err|{
+    let iface = tun::create(&conf).unwrap_or_else(|_err|{
         eprintln!("Failed to create tun device, {}", _err);
         process::exit(-1);
     });
-    iface.enabled(true).unwrap();
 
     // special 'handshake' packet as the first packet
     let mut first_packet = vec![0x44];
@@ -65,13 +67,15 @@ fn handle_tun_data(tun_fd: i32, KEY:&'static str, METHOD:&'static EncoderMethods
         let mut index: usize = 0;
         let mut offset:i32;
         let mut buf = vec![0u8; BUFFER_SIZE];
+        #[cfg(target_os = "macos")]
+        let mut buf2 = vec![0u8; BUFFER_SIZE];
         let mut stream_read = _server.lock().unwrap().stream.try_clone().unwrap();
         let mut decoder = _server.lock().unwrap().encoder.clone();
         loop {
             index += match stream_read.read(&mut buf[index..]) {
                 Ok(read_size) if read_size > 0 => read_size,
                 _ => {
-                    //eprintln!("upstream read failed");
+                    // eprintln!("upstream read failed");
                     // try to restore connection, and without 'first_packet', retry forever
                     let server_new = match client::tun_get_stream(KEY, METHOD, SERVER_ADDR, PORT_START, PORT_END, first_packet, 0){
                         Some((stream, encoder)) => Server {stream, encoder},
@@ -89,14 +93,23 @@ fn handle_tun_data(tun_fd: i32, KEY:&'static str, METHOD:&'static EncoderMethods
                 let (data_len, _offset) = decoder.decode(&mut buf[offset as usize..index]);
                 if data_len > 0 {
                     offset += _offset;
-                    match tun_writer.write(&buf[offset as usize- data_len .. offset as usize]) {
-                        Ok(_) => (),
-                        _ => {
-                            //eprintln!("tun write failed");
-                            stream_read.shutdown(net::Shutdown::Both);
-                            break;
-                        }
-                    };
+                    #[cfg(target_os = "macos")]
+                    {
+                        buf2[..4].copy_from_slice(&[0,0,0,2]);
+                        buf2[4..data_len+4].copy_from_slice(&buf[offset as usize- data_len .. offset as usize]);
+                        tun_writer.write(&buf2[..data_len+4]).unwrap();
+                    }
+                    #[cfg(target_os = "linux")]
+                    {
+                        match tun_writer.write(&buf[offset as usize- data_len .. offset as usize]) {
+                            Ok(_) => (),
+                            _ => {
+                                //eprintln!("tun write failed");
+                                stream_read.shutdown(net::Shutdown::Both);
+                                break;
+                            }
+                        };
+                    }
                     if (index - offset as usize) < (1 + 12 + 2 + 16) {
                         break;  // definitely not enough data to decode
                     }
@@ -132,11 +145,11 @@ fn handle_tun_data(tun_fd: i32, KEY:&'static str, METHOD:&'static EncoderMethods
                     break;
                 }
             };
-            index = encoder.encode(&mut buf, index);
+            index = encoder.encode(&mut buf[STRIP_HEADER_LEN..], index);
             loop 
             {
                 retry = 0;
-                match stream_write.write(&buf[..index]) {
+                match stream_write.write(&buf[STRIP_HEADER_LEN..index+STRIP_HEADER_LEN]) {
                     Ok(_) => break,
                     _ => {
                         //eprintln!("upstream write failed");

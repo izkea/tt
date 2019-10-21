@@ -7,27 +7,20 @@ use std::collections::HashMap;
 use std::os::unix::io::AsRawFd;
 use std::sync::{mpsc, Arc, Mutex};
 
-use tun::Device;
-use tun::configure;
-use tun::platform::linux;
 use tun::platform::posix;
 use crate::utils::tun_fd;
 use crate::encoder::{Encoder};
 use std::net::{self, Ipv4Addr, TcpStream};
 
 pub fn setup(tun_ip: &str, BUFFER_SIZE: usize) -> (posix::Reader, posix::Writer){
-    let mut conf = configure();
-    conf.address(tun_ip);
-    conf.netmask("255.255.255.0");
-    conf.mtu((BUFFER_SIZE - 60) as i32);
+    let mut conf = tun::Configuration::default();
+    conf.address(tun_ip)
+        .netmask("255.255.255.0")
+        .mtu((BUFFER_SIZE-60) as i32)
+        .up();
 
-    let mut iface = linux::create(&conf).unwrap_or_else(|err|{
+    let iface = tun::create(&conf).unwrap_or_else(|err|{
         eprintln!("Failed to create tun device, {}", err);
-        process::exit(-1);
-    });
-
-    iface.enabled(true).unwrap_or_else(|err|{
-        eprintln!("Failed to enable tun device, {}", err);
         process::exit(-1);
     });
 
@@ -81,7 +74,7 @@ pub fn handle_connection(connection_rx: mpsc::Receiver<(TcpStream, Encoder)>,
             println!("got client connection");
             stream.set_nodelay(true);
             let mut index: usize = 0;
-            let mut offset:i32 = 1 + 12 + 2 + 16;               // read least data at first
+            let mut offset:i32 = 4 + 1 + 12 + 2 + 16;               // read least data at first
             let mut buf  = vec![0u8; BUFFER_SIZE];
             let decoder = encoder.clone();
             let mut stream_read = stream.try_clone().unwrap();
@@ -126,6 +119,7 @@ pub fn handle_connection(connection_rx: mpsc::Receiver<(TcpStream, Encoder)>,
                 }
                 else if offset == -1 {
                     eprintln!("first packet decode error!");
+                    stream.shutdown(net::Shutdown::Both);
                     return;
                 }
                 else { break; } // decrypted_size ==0 && offset == 0: not enough data to decode
