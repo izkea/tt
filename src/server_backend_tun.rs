@@ -12,6 +12,11 @@ use crate::utils::tun_fd;
 use crate::encoder::{Encoder};
 use std::net::{self, Ipv4Addr, TcpStream};
 
+#[cfg(target_os = "linux")]
+static STRIP_HEADER_LEN: usize = 0;
+#[cfg(target_os = "macos")]
+static STRIP_HEADER_LEN: usize = 4;
+
 pub fn setup(tun_ip: &str, BUFFER_SIZE: usize) -> (posix::Reader, posix::Writer){
     let mut conf = tun::Configuration::default();
     conf.address(tun_ip)
@@ -48,14 +53,19 @@ pub fn handle_connection(connection_rx: mpsc::Receiver<(TcpStream, Encoder)>,
                 Ok(read_size) if read_size > 0 => read_size,
                 _ => break
             };
-            let dst_ip = Ipv4Addr::new(buf[16], buf[17], buf[18], buf[19]);
+            let dst_ip = Ipv4Addr::new(
+                    buf[16 + STRIP_HEADER_LEN],
+                    buf[17 + STRIP_HEADER_LEN],
+                    buf[18 + STRIP_HEADER_LEN],
+                    buf[19 + STRIP_HEADER_LEN]);
+
             if let Some((stream, encoder)) = _clients.lock().unwrap().get(&dst_ip) {
-                index = encoder.encode(&mut buf, index);
+                index = encoder.encode(&mut buf[STRIP_HEADER_LEN..], index);
                 // TODO need a better solution
                 // fix1: use non-blocking or seperate threads for each client
                 // fix2: try not to copy the stream each time.
                 let mut stream_write = stream.try_clone().unwrap();
-                match stream_write.write(&buf[..index]) {
+                match stream_write.write(&buf[STRIP_HEADER_LEN..index+STRIP_HEADER_LEN]) {
                     Ok(_) => continue,
                     Err(_) => continue,   // if client has disconnected, continue
                 };
@@ -76,6 +86,8 @@ pub fn handle_connection(connection_rx: mpsc::Receiver<(TcpStream, Encoder)>,
             let mut index: usize = 0;
             let mut offset:i32 = 4 + 1 + 12 + 2 + 16;               // read least data at first
             let mut buf  = vec![0u8; BUFFER_SIZE];
+            #[cfg(target_os = "macos")]
+            let mut buf2 = vec![0u8; BUFFER_SIZE];
             let decoder = encoder.clone();
             let mut stream_read = stream.try_clone().unwrap();
 
@@ -141,10 +153,16 @@ pub fn handle_connection(connection_rx: mpsc::Receiver<(TcpStream, Encoder)>,
                     if data_len > 0 {
                         offset += _offset;
                         let data = &buf[offset as usize - data_len .. offset as usize];
-                        match _tun_writer.write(data) {
-                            Ok(_) => (),
-                            Err(_) => break
-                        };
+                        #[cfg(target_os = "macos")]
+                        {
+                            buf2[..4].copy_from_slice(&[0,0,0,2]);
+                            buf2[4..data_len+4].copy_from_slice(&buf[offset as usize- data_len .. offset as usize]);
+                            _tun_writer.write(&buf2[..data_len+4]).unwrap();
+                        }
+                        #[cfg(target_os = "linux")]
+                        {
+                            _tun_writer.write(data).unwrap();
+                        }
                         if (index - offset as usize) < (1 + 12 + 2 + 16) {
                             break; // definitely not enough data to decode
                         }
