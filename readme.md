@@ -45,7 +45,7 @@ Result:
 - [x] Proxy & tunnels 
     - [x] socks5 proxy(only CONNECT command suppported)
     - [x] TUN support (for Linux
-	- [ ] UTUN support (for MacOS
+	- [x] UTUN support (for MacOS
 	- [ ] [WinTUN](https://www.wintun.net/) support (for Windows
 - [x] Encryption
     - [x] chacha20-poly1305
