@@ -6,6 +6,7 @@ extern crate sha2;
 use rand::Rng;
 use std::time;
 use sha2::{Sha256, Digest};
+use std::net::Ipv4Addr;
 
 pub mod tun_fd;
 
@@ -60,4 +61,36 @@ pub fn get_port(otp:u32, PORT_RANGE_START:u32, PORT_RANGE_END:u32) -> u32 {
 
 pub fn get_lifetime(otp:u32) -> u8 {
     (otp % 15 + 1) as u8
+}
+
+pub fn parse_CIDR(cidr: &str) -> (Ipv4Addr, Ipv4Addr) {
+    let cidr: Vec<&str> = cidr.split("/").collect();
+    assert!(cidr.len() > 0);
+    //let addr = cidr[0].into_address().unwrap();     // string to address, using tun::IntoAddress
+    let addr = {
+        let tmp: Vec<&str> = cidr[0].split(".").collect();
+        assert!(tmp.len() == 4);
+        Ipv4Addr::new(tmp[0].parse::<u8>().unwrap(),
+                    tmp[1].parse::<u8>().unwrap(),
+                    tmp[2].parse::<u8>().unwrap(),
+                    tmp[3].parse::<u8>().unwrap(),
+            )
+    };
+
+    let mask = match cidr.len() {
+        2 => {
+            let mask: u32 = cidr[1].parse::<u32>().unwrap();
+            assert!(mask <= 32);
+            let mask = ( u32::pow(2, mask) -1 ) << (32 - mask);
+            //mask.into_address().unwrap();     // int to address, the tun::IntoAddress does it wrong
+            Ipv4Addr::new(
+			((mask >> 24) & 0xff) as u8,
+			((mask >> 16) & 0xff) as u8,
+			((mask >> 8 ) & 0xff) as u8,
+			((mask >> 0 ) & 0xff) as u8
+                )
+        }
+        _ => Ipv4Addr::new(255,255,255,0)                                   // netmask default to /24
+    };
+    (addr, mask)
 }

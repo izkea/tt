@@ -7,8 +7,9 @@ use std::collections::HashMap;
 use std::os::unix::io::AsRawFd;
 use std::sync::{mpsc, Arc, Mutex};
 
+extern crate tun;
+use crate::utils;
 use tun::platform::posix;
-use crate::utils::tun_fd;
 use crate::encoder::{Encoder};
 use std::net::{self, Ipv4Addr, TcpStream};
 
@@ -17,10 +18,11 @@ static STRIP_HEADER_LEN: usize = 0;
 #[cfg(target_os = "macos")]
 static STRIP_HEADER_LEN: usize = 4;
 
-pub fn setup(tun_ip: &str, BUFFER_SIZE: usize) -> (posix::Reader, posix::Writer){
+pub fn setup(tun_addr: &str, BUFFER_SIZE: usize) -> (posix::Reader, posix::Writer){
     let mut conf = tun::Configuration::default();
-    conf.address(tun_ip)
-        .netmask("255.255.255.0")
+    let (addr, mask) = utils::parse_CIDR(tun_addr);
+    conf.address(addr)
+        .netmask(mask)
         .mtu((BUFFER_SIZE-60) as i32)
         .up();
 
@@ -79,7 +81,7 @@ pub fn handle_connection(connection_rx: mpsc::Receiver<(TcpStream, Encoder)>,
     for (mut stream, encoder) in connection_rx {
         // thread: accept connection and write to channel
         let _clients = clients.clone();
-        let mut _tun_writer = tun_fd::TunFd::new(raw_fd);
+        let mut _tun_writer = utils::tun_fd::TunFd::new(raw_fd);
         let _upload = thread::spawn(move || {
             println!("got client connection");
             stream.set_nodelay(true);

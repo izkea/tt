@@ -7,7 +7,7 @@ use std::io::prelude::*;
 use std::sync::{Arc, Mutex};
 use std::os::unix::io::IntoRawFd;
 
-use tun::Device;
+extern crate tun;
 use crate::utils;
 use crate::client;
 use crate::encoder::Encoder;
@@ -19,11 +19,12 @@ static STRIP_HEADER_LEN: usize = 0;
 static STRIP_HEADER_LEN: usize = 4;
 
 pub fn run(KEY:&'static str, METHOD:&'static EncoderMethods, SERVER_ADDR:&'static str, 
-            PORT_START:u32, PORT_END:u32, BUFFER_SIZE:usize, tun_ip: &str) {
+            PORT_START:u32, PORT_END:u32, BUFFER_SIZE:usize, tun_addr: &str) {
 
     let mut conf = tun::Configuration::default();
-    conf.address(tun_ip)
-        .netmask("255.255.255.0")
+    let (addr, mask) = utils::parse_CIDR(tun_addr);
+    conf.address(addr)
+        .netmask(mask)
         .mtu((BUFFER_SIZE-60) as i32)
         .up();
 
@@ -34,7 +35,7 @@ pub fn run(KEY:&'static str, METHOD:&'static EncoderMethods, SERVER_ADDR:&'stati
 
     // special 'handshake' packet as the first packet
     let mut first_packet = vec![0x44];
-    first_packet.append(&mut iface.address().unwrap().octets().to_vec());
+    first_packet.append(&mut addr.octets().to_vec());
     let first_packet:&'static [u8] = Box::leak(first_packet.into_boxed_slice());
 
     let tun_fd = iface.into_raw_fd();
