@@ -86,7 +86,7 @@ pub fn handle_connection(connection_rx: mpsc::Receiver<(TcpStream, Encoder)>,
             println!("got client connection");
             stream.set_nodelay(true);
             let mut index: usize = 0;
-            let mut offset:i32 = 4 + 1 + 12 + 2 + 16;               // read least data at first
+            let mut offset:i32 = 4 + 1 + 12 + 2 + 16;               // maximum data size read at first
             let mut buf  = vec![0u8; BUFFER_SIZE];
             #[cfg(target_os = "macos")]
             let mut buf2 = vec![0u8; BUFFER_SIZE];
@@ -106,21 +106,22 @@ pub fn handle_connection(connection_rx: mpsc::Receiver<(TcpStream, Encoder)>,
                     let data = &buf[offset as usize - data_len .. offset as usize];
                     match _tun_writer.write(data) {
                         Ok(_) => (),
-                        Err(_) => break
+                        Err(err) => eprintln!("tun write failed, {}", err)
                     };
 
-                    if data[0] == 0x44 {       // got special 'ipv4 handshake' packet
+                    if data[0] == 0x44 {            // got special 'ipv4 handshake' packet
                         let src_ip = Ipv4Addr::new(data[1], data[2], data[3], data[4]);
                         _clients.lock().unwrap().insert(src_ip, (stream_read, encoder));
                         break;
                     }
-                    else if data[0] >> 4 == 0x4 {        // got an ipv4 packet, cool
+                    else if data[0] >> 4 == 0x4 {   // got an ipv4 packet, cool
                         let src_ip = Ipv4Addr::new(data[12], data[13], data[14], data[15]);
                         _clients.lock().unwrap().insert(src_ip, (stream_read, encoder));
                         break;
                     }
                     else if data[0] == 0x66 {       // got special 'ipv6 handshake' packet
-                        //
+                        // TODO
+                        continue;
                     }
                     else if data[0] >> 4 == 0x6 {   // got an ipv6 packet, have to do another round
                         index = 0;
@@ -130,12 +131,13 @@ pub fn handle_connection(connection_rx: mpsc::Receiver<(TcpStream, Encoder)>,
                 }
                 else if data_len ==0 && offset > 0 {        // left to be read
                     offset = index as i32 + offset;
+                    continue;
                 }
                 else if offset == -1 {
                     eprintln!("first packet decode error!");
-                    stream.shutdown(net::Shutdown::Both);
-                    return;
                 }
+                stream.shutdown(net::Shutdown::Both);
+                return;
             }
 
             println!("first packet process done");
