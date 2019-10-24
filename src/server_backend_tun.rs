@@ -128,7 +128,7 @@ pub fn handle_connection(connection_rx: mpsc::Receiver<(TcpStream, Encoder)>,
                         continue;
                     }
                 }
-                else if offset > 0 {        // left_shall_be_read
+                else if data_len ==0 && offset > 0 {        // left to be read
                     offset = index as i32 + offset;
                 }
                 else if offset == -1 {
@@ -136,7 +136,6 @@ pub fn handle_connection(connection_rx: mpsc::Receiver<(TcpStream, Encoder)>,
                     stream.shutdown(net::Shutdown::Both);
                     return;
                 }
-                else { break; } // decrypted_size ==0 && offset == 0: not enough data to decode
             }
 
             println!("first packet process done");
@@ -173,7 +172,7 @@ pub fn handle_connection(connection_rx: mpsc::Receiver<(TcpStream, Encoder)>,
                         offset = -1;
                         break;
                     }
-                    else { break; } // decrypted_size ==0 && offset == 0: not enough data to decode
+                    else { break; } // decrypted_size ==0 && offset != -1: not enough data to decode
                 }
                 if offset == -1 {break;}
                 buf.copy_within(offset as usize .. index, 0);
