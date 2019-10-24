@@ -14,7 +14,7 @@ pub fn handle_connection(rx: mpsc::Receiver<(TcpStream, Encoder)>, BUFFER_SIZE:u
         let _client_stream = client_stream.try_clone().unwrap();
         let upstream = match simple_socks5_handshake(_client_stream, _encoder){
             Some(stream) => stream,
-            None => {client_stream.shutdown(net::Shutdown::Both); return}
+            None => {client_stream.shutdown(net::Shutdown::Both); continue;}
         };
 
         upstream.set_nodelay(true);
