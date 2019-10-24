@@ -95,6 +95,9 @@ fn start_listener(tx: mpsc::Sender<(net::TcpStream, Encoder)>, KEY:&'static str,
             if time_now % 60 >= 3 || time_now/60 < time_start { continue; };  // once a minute
             let time_diff = (time_now / 60 - time_start) as u8;
             if time_diff >= lifetime || time_diff > 2 && _streams.lock().unwrap().len() == 0 {
+                // sleep some secs, to avoid that we always disconnect the client in the first
+                // secs of every minute, that's a obvious traffic pattern as well.
+                thread::sleep(time::Duration::from_secs((rand::random::<u8>() % 60) as u64));
                 *_flag_stop.lock().unwrap() = true;
                 drop(_streams);
                 drop(_flag_stop);
