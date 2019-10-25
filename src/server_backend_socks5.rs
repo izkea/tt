@@ -10,83 +10,87 @@ use std::net::{SocketAddr, SocketAddrV4, SocketAddrV6, Ipv4Addr, Ipv6Addr, ToSoc
 //pub fn handle_connection(&self, client_stream:net::TcpStream, encoder:Encoder) {
 pub fn handle_connection(rx: mpsc::Receiver<(TcpStream, Encoder)>, BUFFER_SIZE:usize){
     for (client_stream, encoder) in rx {
-        let _encoder = encoder.clone();
-        let _client_stream = client_stream.try_clone().unwrap();
-        let upstream = match simple_socks5_handshake(_client_stream, _encoder){
-            Some(stream) => stream,
-            None => {client_stream.shutdown(net::Shutdown::Both); continue;}
-        };
-
-        upstream.set_nodelay(true);
-        client_stream.set_nodelay(true);
-
-        let mut upstream_read = upstream.try_clone().unwrap();
-        let mut upstream_write = upstream.try_clone().unwrap();
-        let mut client_stream_read = client_stream.try_clone().unwrap();
-        let mut client_stream_write = client_stream.try_clone().unwrap();
-        let decoder = encoder.clone();
-
-        // download stream
-        let _download = thread::spawn(move || {
-            let mut index: usize;
-            let mut buf  = vec![0u8; BUFFER_SIZE];
-            loop {
-                index = match upstream_read.read(&mut buf[..BUFFER_SIZE-60]) {
-                    Ok(read_size) if read_size > 0 => read_size,
-                    _ => break
-                };
-                index = encoder.encode(&mut buf, index);
-                match client_stream_write.write(&buf[..index]) {
-                    Ok(_) => (),
-                    Err(_) => break
-                };
-            }
-            upstream_read.shutdown(net::Shutdown::Both);
-            client_stream_write.shutdown(net::Shutdown::Both);
-            //println!("Download stream exited...");
-        });
-
-        // upload stream
-        let _upload = thread::spawn(move || {
-            let mut index: usize = 0;
-            let mut offset:i32;
-            let mut buf  = vec![0u8; BUFFER_SIZE];
-            loop {
-                // from docs, size = 0 means EOF, 
-                // maybe we don't need to worry about TCP Keepalive here.
-                index += match client_stream_read.read(&mut buf[index..]) {
-                    Ok(read_size) if read_size > 0 => read_size,
-                    _ => break,
-                };
-                offset = 0;
-                loop {
-                    let (data_len, _offset) = decoder.decode(&mut buf[offset as usize..index]);
-                    if data_len > 0 {
-                        offset += _offset;
-                        match upstream_write.write(&buf[offset as usize - data_len .. offset as usize]) {
-                            Ok(_) => (),
-                            Err(_) => break
-                        };
-                        if (index - offset as usize) < (1 + 12 + 2 + 16) {
-                            break; // definitely not enough data to decode
-                        }
-                    }
-                    else if _offset == -1 {
-                        eprintln!("upload stream decode error!");
-                        offset = -1;
-                        break;
-                    }
-                    else { break; } // decrypted_size ==0 && offset != -1: not enough data to decode
-                }
-                if offset == -1 {break;}
-                buf.copy_within(offset as usize .. index, 0);
-                index = index - (offset as usize);
-            }
-            client_stream_read.shutdown(net::Shutdown::Both);
-            upstream_write.shutdown(net::Shutdown::Both);
-            //println!("Upload stream exited...");
-        });
+        thread::spawn( move || do_handle_connection(client_stream, encoder, BUFFER_SIZE));
     }
+}
+
+pub fn do_handle_connection(client_stream:TcpStream, encoder: Encoder, BUFFER_SIZE: usize) {
+    let _encoder = encoder.clone();
+    let _client_stream = client_stream.try_clone().unwrap();
+    let upstream = match simple_socks5_handshake(_client_stream, _encoder){
+        Some(stream) => stream,
+        None => {client_stream.shutdown(net::Shutdown::Both); return;}
+    };
+
+    upstream.set_nodelay(true);
+    client_stream.set_nodelay(true);
+
+    let mut upstream_read = upstream.try_clone().unwrap();
+    let mut upstream_write = upstream.try_clone().unwrap();
+    let mut client_stream_read = client_stream.try_clone().unwrap();
+    let mut client_stream_write = client_stream.try_clone().unwrap();
+    let decoder = encoder.clone();
+
+    // download stream
+    let _download = thread::spawn(move || {
+        let mut index: usize;
+        let mut buf  = vec![0u8; BUFFER_SIZE];
+        loop {
+            index = match upstream_read.read(&mut buf[..BUFFER_SIZE-60]) {
+                Ok(read_size) if read_size > 0 => read_size,
+                _ => break
+            };
+            index = encoder.encode(&mut buf, index);
+            match client_stream_write.write(&buf[..index]) {
+                Ok(_) => (),
+                Err(_) => break
+            };
+        }
+        upstream_read.shutdown(net::Shutdown::Both);
+        client_stream_write.shutdown(net::Shutdown::Both);
+        //println!("Download stream exited...");
+    });
+
+    // upload stream
+    let _upload = thread::spawn(move || {
+        let mut index: usize = 0;
+        let mut offset:i32;
+        let mut buf  = vec![0u8; BUFFER_SIZE];
+        loop {
+            // from docs, size = 0 means EOF, 
+            // maybe we don't need to worry about TCP Keepalive here.
+            index += match client_stream_read.read(&mut buf[index..]) {
+                Ok(read_size) if read_size > 0 => read_size,
+                _ => break,
+            };
+            offset = 0;
+            loop {
+                let (data_len, _offset) = decoder.decode(&mut buf[offset as usize..index]);
+                if data_len > 0 {
+                    offset += _offset;
+                    match upstream_write.write(&buf[offset as usize - data_len .. offset as usize]) {
+                        Ok(_) => (),
+                        Err(_) => break
+                    };
+                    if (index - offset as usize) < (1 + 12 + 2 + 16) {
+                        break; // definitely not enough data to decode
+                    }
+                }
+                else if _offset == -1 {
+                    eprintln!("upload stream decode error!");
+                    offset = -1;
+                    break;
+                }
+                else { break; } // decrypted_size ==0 && offset != -1: not enough data to decode
+            }
+            if offset == -1 {break;}
+            buf.copy_within(offset as usize .. index, 0);
+            index = index - (offset as usize);
+        }
+        client_stream_read.shutdown(net::Shutdown::Both);
+        upstream_write.shutdown(net::Shutdown::Both);
+        //println!("Upload stream exited...");
+    });
 }
 
 pub fn simple_socks5_handshake(mut stream: TcpStream, encoder:Encoder) -> Option<TcpStream>{
