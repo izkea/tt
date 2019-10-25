@@ -1,6 +1,6 @@
 [package]
 name = "tt"
-version = "0.3.4-tun"
+version = "0.3.5-tun"
 authors = ["The TT Team"]
 edition = "2018"
 
