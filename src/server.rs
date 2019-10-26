@@ -3,11 +3,14 @@
 use std::net;
 use std::time;
 use std::thread;
+use std::process;
 use std::sync::{Arc, Mutex, mpsc};
 
 use crate::utils;
-use crate::server_backend_tun;
-use crate::server_backend_socks5;
+
+#[cfg(not(target_os = "windows"))]
+use crate::server_tun;
+use crate::server_socks5;
 use crate::encoder::{Encoder, EncoderMethods};
 use crate::encoder::aes256gcm::AES256GCM;
 use crate::encoder::chacha20poly1305::ChaCha20;
@@ -19,11 +22,16 @@ pub fn run(KEY:&'static str, METHOD:&'static EncoderMethods, BIND_ADDR:&'static 
     let (tx, rx) = mpsc::channel();
     let tun = match TUN_IP{
         Some(tun_ip) => {
-            thread::spawn( move || server_backend_tun::handle_connection(rx, BUFFER_SIZE, &tun_ip));
+            if cfg!(target_os = "windows") {
+                eprintln!("Error: tun mode does not support windows for now");
+                process::exit(-1);
+            }
+            #[cfg(not(target_os = "windows"))]
+            thread::spawn( move || server_tun::handle_connection(rx, BUFFER_SIZE, &tun_ip));
             true
         },
         None  => {
-            thread::spawn( move || server_backend_socks5::handle_connection(rx, BUFFER_SIZE));
+            thread::spawn( move || server_socks5::handle_connection(rx, BUFFER_SIZE));
             false
         }
     };

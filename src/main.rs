@@ -7,10 +7,12 @@ mod utils;
 mod server;
 mod client;
 mod encoder;
-mod server_backend_tun;
-mod client_frontend_tun;
-mod server_backend_socks5;
-mod client_frontend_socks5;
+#[cfg(not(target_os = "windows"))]
+mod server_tun;
+#[cfg(not(target_os = "windows"))]
+mod client_tun;
+mod server_socks5;
+mod client_socks5;
 
 use encoder::EncoderMethods;
 

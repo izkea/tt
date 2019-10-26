@@ -8,6 +8,7 @@ use std::time;
 use sha2::{Sha256, Digest};
 use std::net::Ipv4Addr;
 
+#[cfg(not(target_os = "windows"))]
 pub mod tun_fd;
 
 pub fn get_secs_now() -> u64 {
