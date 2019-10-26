@@ -83,7 +83,7 @@ pub fn handle_connection(connection_rx: mpsc::Receiver<(TcpStream, Encoder)>,
         let _clients = clients.clone();
         let mut _tun_writer = utils::tun_fd::TunFd::new(raw_fd);
         let _upload = thread::spawn(move || {
-            println!("got client connection");
+            println!("Got client from: [{}]", stream.peer_addr().unwrap());
             stream.set_nodelay(true);
             let mut index: usize = 0;
             let mut offset:i32 = 4 + 1 + 12 + 2 + 16;               // maximum data size read at first
@@ -134,13 +134,13 @@ pub fn handle_connection(connection_rx: mpsc::Receiver<(TcpStream, Encoder)>,
                     continue;
                 }
                 else if offset == -1 {
-                    eprintln!("first packet decode error!");
+                    eprintln!("First packet error!");
                 }
                 stream.shutdown(net::Shutdown::Both);
                 return;
             }
 
-            println!("first packet process done");
+            println!("First packet OK!");
 
             index = 0;
             loop {
@@ -170,7 +170,7 @@ pub fn handle_connection(connection_rx: mpsc::Receiver<(TcpStream, Encoder)>,
                         }
                     }
                     else if _offset == -1 {
-                        eprintln!("upload stream decode error!");
+                        eprintln!("Packet decode error from: [{}]", stream.peer_addr().unwrap());
                         offset = -1;
                         break;
                     }

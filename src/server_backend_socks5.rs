@@ -3,6 +3,7 @@
 use std::net;
 use std::thread;
 use std::sync::mpsc;
+use std::error::Error;
 use std::io::prelude::*;
 use crate::encoder::{Encoder};
 use std::net::{SocketAddr, SocketAddrV4, SocketAddrV6, Ipv4Addr, Ipv6Addr, ToSocketAddrs, TcpStream};
@@ -18,8 +19,8 @@ pub fn do_handle_connection(client_stream:TcpStream, encoder: Encoder, BUFFER_SI
     let _encoder = encoder.clone();
     let _client_stream = client_stream.try_clone().unwrap();
     let upstream = match simple_socks5_handshake(_client_stream, _encoder){
-        Some(stream) => stream,
-        None => {client_stream.shutdown(net::Shutdown::Both); return;}
+        Ok(stream) => stream,
+        Err(_) => {client_stream.shutdown(net::Shutdown::Both); return;}
     };
 
     upstream.set_nodelay(true);
@@ -93,19 +94,23 @@ pub fn do_handle_connection(client_stream:TcpStream, encoder: Encoder, BUFFER_SI
     });
 }
 
-pub fn simple_socks5_handshake(mut stream: TcpStream, encoder:Encoder) -> Option<TcpStream>{
+pub fn simple_socks5_handshake(mut stream: TcpStream, encoder:Encoder) -> Result<TcpStream, Box<dyn Error>>{
     let mut buf = [0u8; 512];
-    stream.read(&mut buf).unwrap();
+    stream.read(&mut buf)?;
     let (data_len, offset) = encoder.decode(&mut buf);
-    if data_len == 0 || buf[offset as usize - data_len] != 0x05 {  return None }   // not sock5
+    if data_len == 0 || buf[offset as usize - data_len] != 0x05 {
+        return Err("not socks5".into());            // not socks5
+    }
 
     buf[..2].copy_from_slice(&[0x05, 0x00]);
     let data_len = encoder.encode(&mut buf, 2);
-    stream.write(&buf[..data_len]).unwrap();
+    stream.write(&buf[..data_len])?;
 
-    stream.read(&mut buf).unwrap();
+    stream.read(&mut buf)?;
     let (data_len, offset) = encoder.decode(&mut buf);
-    if data_len == 0 || buf[offset as usize - data_len + 1] != 0x01 {  return None }   // not CONNECT
+    if data_len == 0 || buf[offset as usize - data_len + 1] != 0x01 {
+        return Err("not CONNECT".into());           // not CONNECT
+    }
 
     let _buf = &buf[offset as usize - data_len .. offset as usize];
     let port:u16 = ((_buf[data_len-2] as u16) << 8) | _buf[data_len-1] as u16;
@@ -120,10 +125,7 @@ pub fn simple_socks5_handshake(mut stream: TcpStream, encoder:Encoder) -> Option
             let mut domain = String::from_utf8_lossy(&_buf[5..length+5]).to_string();
             domain.push_str(&":");
             domain.push_str(&port.to_string());
-            match domain.to_socket_addrs() {
-                Ok(domain) => domain.collect(),
-                Err(_)  => return None,
-            }
+            domain.to_socket_addrs()?.collect()
         },
         0x04 => {                                   // ipv6 address
             let buf = (2..10).map(|x| {
@@ -133,21 +135,26 @@ pub fn simple_socks5_handshake(mut stream: TcpStream, encoder:Encoder) -> Option
                 buf[0], buf[1], buf[2], buf[3], buf[4], buf[5], buf[6], buf[7]), port, 0, 0)
             )]
         },
-        _ => return None,
+        _ => return Err("failed to parse address".into()),
     };
 
     match TcpStream::connect(&addr[..]){
         Ok(upstream) => {
             buf[..10].copy_from_slice(&[0x5, 0x0, 0x0, 0x1, 0x7f, 0x0, 0x0, 0x1, 0x0, 0x0]);
             let data_len = encoder.encode(&mut buf, 10);
-            stream.write(&buf[..data_len]).unwrap();
-            Some(upstream)
+            match stream.write(&buf[..data_len]) {
+                Ok(_) => return Ok(upstream),
+                Err(_) => {
+                    upstream.shutdown(net::Shutdown::Both);
+                    return Err("client write failed".into());
+                }
+            };
         },
         Err(_) => {
             buf[..2].copy_from_slice(&[0x05, 0x01]);
             let data_len = encoder.encode(&mut buf, 2);
-            stream.write(&buf[..data_len]).unwrap();
-            return None
+            stream.write(&buf[..data_len])?;
+            return Err("upstream connect failed".into());
         }
     }
 }
