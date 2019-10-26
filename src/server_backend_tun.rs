@@ -65,7 +65,7 @@ pub fn handle_connection(connection_rx: mpsc::Receiver<(TcpStream, Encoder)>,
                 index = encoder.encode(&mut buf[STRIP_HEADER_LEN..], index);
                 // TODO need a better solution
                 // fix1: use non-blocking or seperate threads for each client
-                // fix2: try not to copy the stream each time.
+                // fix2: try not to clone the stream each time.
                 let mut stream_write = stream.try_clone().unwrap();
                 match stream_write.write(&buf[STRIP_HEADER_LEN..index+STRIP_HEADER_LEN]) {
                     Ok(_) => continue,

@@ -78,7 +78,7 @@ pub fn do_handle_connection(client_stream:TcpStream, encoder: Encoder, BUFFER_SI
                     }
                 }
                 else if _offset == -1 {
-                    eprintln!("upload stream decode error!");
+                    eprintln!("Packet decode error from: [{}]", client_stream_read.peer_addr().unwrap());
                     offset = -1;
                     break;
                 }

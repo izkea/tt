@@ -116,13 +116,13 @@ fn handle_tun_data(tun_fd: i32, KEY:&'static str, METHOD:&'static EncoderMethods
                     }
                 }
                 else if data_len == 0 && _offset == -1 {
-                     eprintln!("download stream decode error!");
+                     eprintln!("Packet decode error!");
                      offset = -1;
                      break;
                 }
                 else { break; } // decrypted_size == 0 && offset != -1: not enough data to decode
             }
-            if offset == -1 {break;}    // TODO whether to exit ???
+            if offset == -1 {break;}
             buf.copy_within(offset as usize .. index, 0);
             index = index - (offset as usize);
         }

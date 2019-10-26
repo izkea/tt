@@ -81,12 +81,12 @@ pub fn handle_connection(local_stream:net::TcpStream, KEY:&'static str,
                         break;  // definitely not enough data to decode
                     }
                 }
-                else if _offset == -1 {
-                     eprintln!("download stream decode error!");
+                else if data_len == 0 && _offset == -1 {
+                     eprintln!("Packet decode error!");
                      offset = -1;
                      break;
                 }
-                else { break; } // decrypted_size ==0 && offset != -1: not enough data to decode
+                else { break; } // decrypted_size == 0 && offset != -1: not enough data to decode
             }
             if offset == -1 {break;}
             buf.copy_within(offset as usize .. index, 0);
