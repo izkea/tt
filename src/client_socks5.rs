@@ -48,7 +48,8 @@ pub fn handle_connection(local_stream:net::TcpStream, KEY:&'static str,
     let _download = thread::spawn(move || {
         //std::io::copy(&mut upstream_read, &mut local_stream_write);
         let mut index: usize = 0;
-        let mut offset:i32;
+        let mut offset:  i32 = 0;
+        let mut last_offset: i32 = 0;
         let mut buf = vec![0u8; BUFFER_SIZE];
         loop {
             index += match upstream_read.read(&mut buf[index..]) {
@@ -57,13 +58,10 @@ pub fn handle_connection(local_stream:net::TcpStream, KEY:&'static str,
                     //eprintln!("upstream read failed");
                     upstream_read.shutdown(net::Shutdown::Both);
                     local_stream_write.shutdown(net::Shutdown::Both);
-                    // #TODO
-                    // 1. distinguish from server port close, something like a packet "FFFF"..
-                    // 2. upstream status shall be handled by client.rs, encode/decode included
                     break;
                 }
             };
-            offset = 0;
+
             loop {
                 let (data_len, _offset) = decoder.decode(&mut buf[offset as usize..index]);
                 if data_len > 0 {
@@ -72,8 +70,7 @@ pub fn handle_connection(local_stream:net::TcpStream, KEY:&'static str,
                         Ok(_) => (),
                         _ => {
                             //eprintln!("local_stream write failed");
-                            upstream_read.shutdown(net::Shutdown::Both);
-                            local_stream_write.shutdown(net::Shutdown::Both);
+                            offset = -2;
                             break;
                         }
                     };
@@ -82,16 +79,34 @@ pub fn handle_connection(local_stream:net::TcpStream, KEY:&'static str,
                     }
                 }
                 else if data_len == 0 && _offset == -1 {
-                     eprintln!("Packet decode error!");
-                     offset = -1;
-                     break;
+                    eprintln!("Packet decode error!");
+                    if last_offset == -1 {
+                        offset = -2;
+                    }
+                    else {
+                        offset = -1;
+                    }
+                    break;
                 }
                 else { break; } // decrypted_size == 0 && offset != -1: not enough data to decode
             }
-            if offset == -1 {break;}
-            buf.copy_within(offset as usize .. index, 0);
-            index = index - (offset as usize);
+
+            if offset > 0 {
+                buf.copy_within(offset as usize .. index, 0);
+                index = index - (offset as usize);
+                offset = 0;
+                last_offset = 0;
+            }
+            else if offset == -1 {
+                offset = 0;
+                last_offset = -1;
+            }
+            else if offset == -2 {
+                break;
+            }
         }
+        upstream_read.shutdown(net::Shutdown::Both);
+        local_stream_write.shutdown(net::Shutdown::Both);
         //println!("Download stream exited...");
     });
 

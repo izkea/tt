@@ -55,7 +55,8 @@ pub fn do_handle_connection(client_stream:TcpStream, encoder: Encoder, BUFFER_SI
     // upload stream
     let _upload = thread::spawn(move || {
         let mut index: usize = 0;
-        let mut offset:i32;
+        let mut offset:  i32 = 0;
+        let mut last_offset: i32 = 0;
         let mut buf  = vec![0u8; BUFFER_SIZE];
         loop {
             // from docs, size = 0 means EOF, 
@@ -64,29 +65,47 @@ pub fn do_handle_connection(client_stream:TcpStream, encoder: Encoder, BUFFER_SI
                 Ok(read_size) if read_size > 0 => read_size,
                 _ => break,
             };
-            offset = 0;
+
             loop {
                 let (data_len, _offset) = decoder.decode(&mut buf[offset as usize..index]);
                 if data_len > 0 {
                     offset += _offset;
                     match upstream_write.write(&buf[offset as usize - data_len .. offset as usize]) {
                         Ok(_) => (),
-                        Err(_) => break
+                        Err(_) => {
+                            offset = -2;
+                            break;
+                        }
                     };
                     if (index - offset as usize) < (1 + 12 + 2 + 16) {
                         break; // definitely not enough data to decode
                     }
                 }
-                else if _offset == -1 {
+                else if data_len == 0 && _offset == -1 {
                     eprintln!("Packet decode error from: [{}]", client_stream_read.peer_addr().unwrap());
-                    offset = -1;
+                    if last_offset == -1 {
+                        offset = -2;
+                    }
+                    else {
+                        offset = -1;
+                    }
                     break;
                 }
                 else { break; } // decrypted_size ==0 && offset != -1: not enough data to decode
             }
-            if offset == -1 {break;}
-            buf.copy_within(offset as usize .. index, 0);
-            index = index - (offset as usize);
+            if offset > 0 {
+                buf.copy_within(offset as usize .. index, 0);
+                index = index - (offset as usize);
+                offset = 0;
+                last_offset = 0;
+            }
+            else if offset == -1 {
+                offset = 0;
+                last_offset = -1;
+            }
+            else if offset == -2 {
+                break;
+            }
         }
         client_stream_read.shutdown(net::Shutdown::Both);
         upstream_write.shutdown(net::Shutdown::Both);

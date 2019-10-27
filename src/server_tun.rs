@@ -86,7 +86,9 @@ pub fn handle_connection(connection_rx: mpsc::Receiver<(TcpStream, Encoder)>,
             println!("Got client from: [{}]", stream.peer_addr().unwrap());
             stream.set_nodelay(true);
             let mut index: usize = 0;
-            let mut offset:i32 = 4 + 1 + 12 + 2 + 16;               // maximum data size read at first
+            let mut offset:  i32 = 4 + 1 + 12 + 2 + 16;         // maximum data size read at first
+            let mut last_offset: i32 = 0;
+
             let mut buf  = vec![0u8; BUFFER_SIZE];
             #[cfg(target_os = "macos")]
             let mut buf2 = vec![0u8; BUFFER_SIZE];
@@ -150,7 +152,7 @@ pub fn handle_connection(connection_rx: mpsc::Receiver<(TcpStream, Encoder)>,
                     Ok(read_size) if read_size > 0 => read_size,
                     _ => break,
                 };
-                offset = 0;
+
                 loop {
                     let (data_len, _offset) = decoder.decode(&mut buf[offset as usize..index]);
                     if data_len > 0 {
@@ -171,14 +173,29 @@ pub fn handle_connection(connection_rx: mpsc::Receiver<(TcpStream, Encoder)>,
                     }
                     else if _offset == -1 {
                         eprintln!("Packet decode error from: [{}]", stream.peer_addr().unwrap());
-                        offset = -1;
+                        if last_offset == -1 {
+                            offset = -2;
+                        }
+                        else {
+                            offset = -1;
+                        }
                         break;
                     }
                     else { break; } // decrypted_size ==0 && offset != -1: not enough data to decode
                 }
-                if offset == -1 {break;}
-                buf.copy_within(offset as usize .. index, 0);
-                index = index - (offset as usize);
+                if offset > 0 {
+                    buf.copy_within(offset as usize .. index, 0);
+                    index = index - (offset as usize);
+                    offset = 0;
+                    last_offset = 0;
+                }
+                else if offset == -1 {
+                    offset = 0;
+                    last_offset = -1;
+                }
+                else if offset == -2 {
+                    break;
+                }
             }
             stream.shutdown(net::Shutdown::Both);
             //println!("Upload stream exited...");

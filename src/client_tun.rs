@@ -66,7 +66,9 @@ fn handle_tun_data(tun_fd: i32, KEY:&'static str, METHOD:&'static EncoderMethods
     let _server = server.clone();
     let _download = thread::spawn(move || {
         let mut index: usize = 0;
-        let mut offset:i32;
+        let mut offset:  i32 = 0;
+        let mut last_offset: i32 = 0;
+
         let mut buf = vec![0u8; BUFFER_SIZE];
         #[cfg(target_os = "macos")]
         let mut buf2 = vec![0u8; BUFFER_SIZE];
@@ -89,7 +91,7 @@ fn handle_tun_data(tun_fd: i32, KEY:&'static str, METHOD:&'static EncoderMethods
                     continue;
                 }
             };
-            offset = 0;
+
             loop {
                 let (data_len, _offset) = decoder.decode(&mut buf[offset as usize..index]);
                 if data_len > 0 {
@@ -102,14 +104,7 @@ fn handle_tun_data(tun_fd: i32, KEY:&'static str, METHOD:&'static EncoderMethods
                     }
                     #[cfg(target_os = "linux")]
                     {
-                        match tun_writer.write(&buf[offset as usize- data_len .. offset as usize]) {
-                            Ok(_) => (),
-                            _ => {
-                                //eprintln!("tun write failed");
-                                stream_read.shutdown(net::Shutdown::Both);
-                                break;
-                            }
-                        };
+                        tun_writer.write(&buf[offset as usize- data_len .. offset as usize]).unwrap();
                     }
                     if (index - offset as usize) < (1 + 12 + 2 + 16) {
                         break;  // definitely not enough data to decode
@@ -117,15 +112,32 @@ fn handle_tun_data(tun_fd: i32, KEY:&'static str, METHOD:&'static EncoderMethods
                 }
                 else if data_len == 0 && _offset == -1 {
                      eprintln!("Packet decode error!");
-                     offset = -1;
+                     if last_offset == -1 {
+                         offset = -2;
+                     }
+                     else {
+                         offset = -1;
+                     }
                      break;
                 }
                 else { break; } // decrypted_size == 0 && offset != -1: not enough data to decode
             }
-            if offset == -1 {break;}
-            buf.copy_within(offset as usize .. index, 0);
-            index = index - (offset as usize);
+
+            if offset > 0 {
+                buf.copy_within(offset as usize .. index, 0);
+                index = index - (offset as usize);
+                offset = 0;
+                last_offset = 0;
+            }
+            else if offset == -1 {
+                offset = 0;
+                last_offset = -1;
+            }
+            else if offset == -2 {
+                break;
+            }
         }
+        stream_read.shutdown(net::Shutdown::Both);
         println!("Download stream exited...");
     
     });
