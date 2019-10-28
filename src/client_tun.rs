@@ -66,7 +66,7 @@ fn handle_tun_data(tun_fd: i32, KEY:&'static str, METHOD:&'static EncoderMethods
     let _server = server.clone();
     let _download = thread::spawn(move || {
         let mut index: usize = 0;
-        let mut offset:  i32 = 0;
+        let mut offset:  i32;
         let mut last_offset: i32 = 0;
 
         let mut buf = vec![0u8; BUFFER_SIZE];
@@ -91,7 +91,7 @@ fn handle_tun_data(tun_fd: i32, KEY:&'static str, METHOD:&'static EncoderMethods
                     continue;
                 }
             };
-
+            offset = 0;
             loop {
                 let (data_len, _offset) = decoder.decode(&mut buf[offset as usize..index]);
                 if data_len > 0 {
@@ -126,11 +126,9 @@ fn handle_tun_data(tun_fd: i32, KEY:&'static str, METHOD:&'static EncoderMethods
             if offset > 0 {
                 buf.copy_within(offset as usize .. index, 0);
                 index = index - (offset as usize);
-                offset = 0;
                 last_offset = 0;
             }
             else if offset == -1 {
-                offset = 0;
                 last_offset = -1;
             }
             else if offset == -2 {

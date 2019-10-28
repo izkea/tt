@@ -55,7 +55,7 @@ pub fn do_handle_connection(client_stream:TcpStream, encoder: Encoder, BUFFER_SI
     // upload stream
     let _upload = thread::spawn(move || {
         let mut index: usize = 0;
-        let mut offset:  i32 = 0;
+        let mut offset:  i32;
         let mut last_offset: i32 = 0;
         let mut buf  = vec![0u8; BUFFER_SIZE];
         loop {
@@ -65,7 +65,7 @@ pub fn do_handle_connection(client_stream:TcpStream, encoder: Encoder, BUFFER_SI
                 Ok(read_size) if read_size > 0 => read_size,
                 _ => break,
             };
-
+            offset = 0;
             loop {
                 let (data_len, _offset) = decoder.decode(&mut buf[offset as usize..index]);
                 if data_len > 0 {
@@ -96,11 +96,9 @@ pub fn do_handle_connection(client_stream:TcpStream, encoder: Encoder, BUFFER_SI
             if offset > 0 {
                 buf.copy_within(offset as usize .. index, 0);
                 index = index - (offset as usize);
-                offset = 0;
                 last_offset = 0;
             }
             else if offset == -1 {
-                offset = 0;
                 last_offset = -1;
             }
             else if offset == -2 {

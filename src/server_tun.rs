@@ -152,7 +152,7 @@ pub fn handle_connection(connection_rx: mpsc::Receiver<(TcpStream, Encoder)>,
                     Ok(read_size) if read_size > 0 => read_size,
                     _ => break,
                 };
-
+                offset = 0;
                 loop {
                     let (data_len, _offset) = decoder.decode(&mut buf[offset as usize..index]);
                     if data_len > 0 {
@@ -186,11 +186,9 @@ pub fn handle_connection(connection_rx: mpsc::Receiver<(TcpStream, Encoder)>,
                 if offset > 0 {
                     buf.copy_within(offset as usize .. index, 0);
                     index = index - (offset as usize);
-                    offset = 0;
                     last_offset = 0;
                 }
                 else if offset == -1 {
-                    offset = 0;
                     last_offset = -1;
                 }
                 else if offset == -2 {

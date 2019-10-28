@@ -48,7 +48,7 @@ pub fn handle_connection(local_stream:net::TcpStream, KEY:&'static str,
     let _download = thread::spawn(move || {
         //std::io::copy(&mut upstream_read, &mut local_stream_write);
         let mut index: usize = 0;
-        let mut offset:  i32 = 0;
+        let mut offset:  i32;
         let mut last_offset: i32 = 0;
         let mut buf = vec![0u8; BUFFER_SIZE];
         loop {
@@ -61,7 +61,7 @@ pub fn handle_connection(local_stream:net::TcpStream, KEY:&'static str,
                     break;
                 }
             };
-
+            offset = 0;
             loop {
                 let (data_len, _offset) = decoder.decode(&mut buf[offset as usize..index]);
                 if data_len > 0 {
@@ -94,11 +94,9 @@ pub fn handle_connection(local_stream:net::TcpStream, KEY:&'static str,
             if offset > 0 {
                 buf.copy_within(offset as usize .. index, 0);
                 index = index - (offset as usize);
-                offset = 0;
                 last_offset = 0;
             }
             else if offset == -1 {
-                offset = 0;
                 last_offset = -1;
             }
             else if offset == -2 {
