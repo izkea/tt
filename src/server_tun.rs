@@ -50,7 +50,6 @@ pub fn handle_connection(connection_rx: mpsc::Receiver<(TcpStream, Encoder)>,
         let mut index: usize;
         let mut buf  = vec![0u8; BUFFER_SIZE];
         loop {
-            // TODO what if we read less/more than a full IP packet ???
             index = match tun_reader.read(&mut buf[..BUFFER_SIZE-60]) {
                 Ok(read_size) if read_size > 0 => read_size,
                 _ => break
