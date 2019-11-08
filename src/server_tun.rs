@@ -14,9 +14,9 @@ use crate::encoder::{Encoder};
 use std::net::{self, Ipv4Addr, TcpStream};
 
 #[cfg(target_os = "linux")]
-static STRIP_HEADER_LEN: usize = 0;
+const STRIP_HEADER_LEN: usize = 0;
 #[cfg(target_os = "macos")]
-static STRIP_HEADER_LEN: usize = 4;
+const STRIP_HEADER_LEN: usize = 4;
 
 pub fn setup(tun_addr: &str, BUFFER_SIZE: usize) -> (posix::Reader, posix::Writer){
     let mut conf = tun::Configuration::default();

@@ -15,9 +15,9 @@ use crate::encoder::Encoder;
 use crate::encoder::EncoderMethods;
 
 #[cfg(target_os = "linux")]
-static STRIP_HEADER_LEN: usize = 0;
+const STRIP_HEADER_LEN: usize = 0;
 #[cfg(target_os = "macos")]
-static STRIP_HEADER_LEN: usize = 4;
+const STRIP_HEADER_LEN: usize = 4;
 
 pub fn run(KEY:&'static str, METHOD:&'static EncoderMethods, SERVER_ADDR:&'static str, 
             PORT_START:u32, PORT_END:u32, BUFFER_SIZE:usize, tun_addr: &str) {
