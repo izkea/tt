@@ -1,11 +1,12 @@
 #![allow(unused_must_use)]
 use std::net;
+use std::env;
 use std::time;
 use std::thread;
 use std::process;
 use std::io::prelude::*;
 use std::sync::{Arc, Mutex};
-use std::os::unix::io::IntoRawFd;
+use std::os::unix::io::{RawFd, IntoRawFd};
 
 extern crate tun;
 use crate::utils;
@@ -21,24 +22,40 @@ static STRIP_HEADER_LEN: usize = 4;
 pub fn run(KEY:&'static str, METHOD:&'static EncoderMethods, SERVER_ADDR:&'static str, 
             PORT_START:u32, PORT_END:u32, BUFFER_SIZE:usize, tun_addr: &str) {
 
-    let mut conf = tun::Configuration::default();
     let (addr, mask) = utils::parse_CIDR(tun_addr);
-    conf.address(addr)
-        .netmask(mask)
-        .mtu((BUFFER_SIZE-60) as i32)
-        .up();
 
-    let iface = tun::create(&conf).unwrap_or_else(|_err|{
-        eprintln!("Failed to create tun device, {}", _err);
-        process::exit(-1);
-    });
+    let tun_fd =
+        if let Ok(value) = env::var("TT_TUN_FD"){
+            value.parse::<RawFd>().unwrap()
+        }
+        else if let Ok(value) = env::var("TT_TUN_UDP_SOCKET_ADDR"){
+            println!("TT_TUN_UDP_SOCKET_ADDR:{}", value);
+            process::exit(-1);
+        }
+        else if let Ok(value) = env::var("TT_TUN_UNIX_SOCKET_PATH") {
+            utils::unix_seqpacket::connect(&value).unwrap_or_else(||{
+                eprintln!("Failed to connect to:{}", &value);
+                process::exit(-1);
+            })
+        }
+        else {
+            let mut conf = tun::Configuration::default();
+            conf.address(addr)
+                .netmask(mask)
+                .mtu((BUFFER_SIZE-60) as i32)
+                .up();
+
+            let iface = tun::create(&conf).unwrap_or_else(|_err|{
+                eprintln!("Failed to create tun device, {}", _err);
+                process::exit(-1);
+            });
+            iface.into_raw_fd()
+        };
 
     // special 'handshake' packet as the first packet
     let mut first_packet = vec![0x44];
     first_packet.append(&mut addr.octets().to_vec());
     let first_packet:&'static [u8] = Box::leak(first_packet.into_boxed_slice());
-
-    let tun_fd = iface.into_raw_fd();
 
     loop {  
         // we use loop here, to restart the connection on "decode error...."
@@ -152,7 +169,7 @@ fn handle_tun_data(tun_fd: i32, KEY:&'static str, METHOD:&'static EncoderMethods
             index = match tun_reader.read(&mut buf[..BUFFER_SIZE-60]) {
                 Ok(read_size) if read_size > 0 => read_size,
                 _ => {
-                    //eprintln!("tun read failed");
+                    eprintln!("tun read failed");
                     stream_write.shutdown(net::Shutdown::Both);
                     break;
                 }
@@ -180,7 +197,7 @@ fn handle_tun_data(tun_fd: i32, KEY:&'static str, METHOD:&'static EncoderMethods
                 }
             }
         }
-        println!("Upload stream exited...");
+        //println!("Upload stream exited...");
     });
 
     _download.join();

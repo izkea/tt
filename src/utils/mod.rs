@@ -10,6 +10,8 @@ use std::net::Ipv4Addr;
 
 #[cfg(not(target_os = "windows"))]
 pub mod tun_fd;
+#[cfg(not(target_os = "windows"))]
+pub mod unix_seqpacket;
 
 pub fn get_secs_now() -> u64 {
     let sys_time = time::SystemTime::now().duration_since(time::UNIX_EPOCH).unwrap();
