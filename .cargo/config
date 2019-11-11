@@ -10,7 +10,7 @@ linker = "arm-linux-gnueabi-gcc"
 [target.arm-unknown-linux-musleabihf]
 linker = "arm-linux-gnueabihf-gcc"
 
-# for aarch64, like mips with cc-rs, we have to set env CC=aarch64-unknown-linux-musl
+# for aarch64, like mips with cc-rs, we have to set env CC=aarch64-linux-gnu-gcc
 [target.aarch64-unknown-linux-musl]
 linker = "aarch64-linux-gnu-gcc"
 rustflags = ["-C", "link-args=-lgcc"]    			# Fix the missing linking args on cargo build
