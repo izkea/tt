@@ -82,7 +82,8 @@ pub fn handle_connection(connection_rx: mpsc::Receiver<(TcpStream, Encoder)>,
         let _clients = clients.clone();
         let mut _tun_writer = utils::tun_fd::TunFd::new(raw_fd);
         let _upload = thread::spawn(move || {
-            println!("Got client from: [{}]", stream.peer_addr().unwrap());
+            println!("========================================");
+            println!("Client from: [{}]", stream.peer_addr().unwrap());
             stream.set_nodelay(true);
             let mut index: usize = 0;
             let mut offset:  i32 = 4 + 1 + 12 + 2 + 16;         // maximum data size read at first
@@ -95,10 +96,11 @@ pub fn handle_connection(connection_rx: mpsc::Receiver<(TcpStream, Encoder)>,
             let mut stream_read = stream.try_clone().unwrap();
 
             // get destination ip from first packet
+            let src_ip: Ipv4Addr;
             loop {                                              // make sure read only one encrypted block
                 index += match stream_read.read(&mut buf[index .. offset as usize]) {
                     Ok(read_size) if read_size > 0 => read_size,
-                    _ => break,
+                    _ => return,
                 };
 
                 let (data_len, _offset) = encoder.decode(&mut buf[..index]);
@@ -111,12 +113,12 @@ pub fn handle_connection(connection_rx: mpsc::Receiver<(TcpStream, Encoder)>,
                     };
 
                     if data[0] == 0x44 {            // got special 'ipv4 handshake' packet
-                        let src_ip = Ipv4Addr::new(data[1], data[2], data[3], data[4]);
+                        src_ip = Ipv4Addr::new(data[1], data[2], data[3], data[4]);
                         _clients.lock().unwrap().insert(src_ip, (stream_read, encoder));
                         break;
                     }
                     else if data[0] >> 4 == 0x4 {   // got an ipv4 packet, cool
-                        let src_ip = Ipv4Addr::new(data[12], data[13], data[14], data[15]);
+                        src_ip = Ipv4Addr::new(data[12], data[13], data[14], data[15]);
                         _clients.lock().unwrap().insert(src_ip, (stream_read, encoder));
                         break;
                     }
@@ -135,13 +137,13 @@ pub fn handle_connection(connection_rx: mpsc::Receiver<(TcpStream, Encoder)>,
                     continue;
                 }
                 else if offset == -1 {
-                    eprintln!("First packet error!");
+                    eprintln!("Client first packet error!");
                 }
                 stream.shutdown(net::Shutdown::Both);
                 return;
             }
 
-            println!("First packet OK!");
+            println!("Client OK! with IP: [{}]", src_ip);
 
             index = 0;
             loop {
