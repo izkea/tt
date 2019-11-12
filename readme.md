@@ -30,8 +30,7 @@ Result:
 ----
 ### Roadmap / Aims
 - [x] Port jumping
-    - [x] dynamic TCP port (HOTP)
-    - [ ] dynamic UDP port (HOTP)
+    - [x] dynamic port (HOTP)
     - [x] dynamic port lifetime (HOTP)
 - [x] Random padding
     - [x] random data at the beginning of payload
@@ -54,7 +53,7 @@ Result:
 	- [x] configurable max block size ('--buffer-size', WARNING: less than 1400 will leave a serious traffic pattern)
 - [x] Binary tool
     - [x] single binary serves as both server and client, with brief options
-    - [ ] **daemon mode support**
+    - [ ] daemon mode support
 - [ ] Hook API 
     - [ ] encode/decode hook api (consider eBPF)
 - [ ] Fake traffic
@@ -65,7 +64,7 @@ Result:
     - [ ] support for setting different weight for each server
 
 ----
-### Full Usage 
+### Usage 
 #### server
 ```
 tt-server 0.3.0
