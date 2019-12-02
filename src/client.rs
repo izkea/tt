@@ -19,7 +19,7 @@ use crate::client_socks5;
 
 pub fn get_stream(KEY:&'static str, METHOD:&'static EncoderMethods, time_now:u64,
             SERVER_ADDR:&'static str, PORT_RANGE_START:u32, PORT_RANGE_END:u32) 
-                    -> Result<(TcpStream, Encoder), Box::<dyn Error>> {
+                    -> Result<(TcpStream, Encoder), Box<dyn Error>> {
     
     let time_now = match time_now {
         0 => utils::get_secs_now() / 60,
