@@ -175,10 +175,10 @@ fn handle_tun_data(tun_fd: i32, KEY:&'static str, METHOD:&'static EncoderMethods
                     break;
                 }
             };
+            retry = 0;
             loop 
             {   // move encode procedure inside the loop,
                 // cause the key bytes will change as the encoder
-                retry = 0;
                 buf2[..index].copy_from_slice(&buf[STRIP_HEADER_LEN..index+STRIP_HEADER_LEN]);
                 let index2 = encoder.encode(&mut buf2, index);
                 match stream_write.write(&buf2[..index2]) {
@@ -186,12 +186,12 @@ fn handle_tun_data(tun_fd: i32, KEY:&'static str, METHOD:&'static EncoderMethods
                     _ => {
                         //eprintln!("upstream write failed");
                         // wait for the _download thread to restore the connection
-                        // and will give up the data after 3 retry
-                        thread::sleep(time::Duration::from_millis((retry * 10) as u64));
+                        // and will give up the data after 12 tries (total 1560ms)
+                        thread::sleep(time::Duration::from_millis((retry * 20) as u64));
                         stream_write = _server.lock().unwrap().stream.try_clone().unwrap();
                         encoder = _server.lock().unwrap().encoder.clone();
                         retry += 1;
-                        if retry > 10 {
+                        if retry > 12 {
                             break;
                         }
                     }
