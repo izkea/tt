@@ -6,13 +6,16 @@ use crate::client;
 use std::io::prelude::*;
 use crate::encoder::EncoderMethods;
 
+#[allow(unused_imports)]
+use log::{trace, debug, info, warn, error, Level};
+
 pub fn run(KEY:&'static str, METHOD:&'static EncoderMethods, SERVER_ADDR:&'static str, 
     BIND_ADDR:&'static str, PORT_START:u32, PORT_END:u32, BUFFER_SIZE:usize) {
 
     let listener = match net::TcpListener::bind(BIND_ADDR){
         Ok(listener) => listener,
         Err(err) => {
-            eprintln!("Failed to bind [{}], {}", BIND_ADDR, err);
+            error!("Failed to bind [{}], {}", BIND_ADDR, err);
             return;
         }
     };
@@ -31,7 +34,7 @@ pub fn handle_connection(local_stream:net::TcpStream, KEY:&'static str,
     let (upstream, encoder) = match client::get_stream(KEY, METHOD, 0, SERVER_ADDR, PORT_START, PORT_END) {
         Ok((upstream, encoder)) => (upstream, encoder),
         Err(err) => {
-            eprintln!("Error: Failed to connect to server, {}", err);
+            error!("Error: Failed to connect to server, {}", err);
             return;
         }
     };
@@ -55,7 +58,7 @@ pub fn handle_connection(local_stream:net::TcpStream, KEY:&'static str,
             index += match upstream_read.read(&mut buf[index..]) {
                 Ok(read_size) if read_size > 0 => read_size,
                 _ => {
-                    //eprintln!("upstream read failed");
+                    //error!("upstream read failed");
                     upstream_read.shutdown(net::Shutdown::Both);
                     local_stream_write.shutdown(net::Shutdown::Both);
                     break;
@@ -69,7 +72,7 @@ pub fn handle_connection(local_stream:net::TcpStream, KEY:&'static str,
                     match local_stream_write.write(&buf[offset as usize- data_len .. offset as usize]) {
                         Ok(_) => (),
                         _ => {
-                            //eprintln!("local_stream write failed");
+                            //error!("local_stream write failed");
                             offset = -2;
                             break;
                         }
@@ -79,7 +82,7 @@ pub fn handle_connection(local_stream:net::TcpStream, KEY:&'static str,
                     }
                 }
                 else if data_len == 0 && _offset == -1 {
-                    eprintln!("Packet decode error!");
+                    error!("Packet decode error!");
                     if last_offset == -1 {
                         offset = -2;
                     }
@@ -105,7 +108,7 @@ pub fn handle_connection(local_stream:net::TcpStream, KEY:&'static str,
         }
         upstream_read.shutdown(net::Shutdown::Both);
         local_stream_write.shutdown(net::Shutdown::Both);
-        //println!("Download stream exited...");
+        debug!("Download stream exited...");
     });
 
     // upload stream
@@ -119,7 +122,7 @@ pub fn handle_connection(local_stream:net::TcpStream, KEY:&'static str,
             index = match local_stream_read.read(&mut buf[..BUFFER_SIZE-60]) {
                 Ok(read_size) if read_size > 0 => read_size,
                 _ => {
-                    //eprintln!("local_stream read failed");
+                    //error!("local_stream read failed");
                     upstream_write.shutdown(net::Shutdown::Both);
                     local_stream_read.shutdown(net::Shutdown::Both);
                     break;
@@ -129,12 +132,12 @@ pub fn handle_connection(local_stream:net::TcpStream, KEY:&'static str,
             match upstream_write.write(&buf[..index]) {
                 Ok(_) => (),
                 _ => {
-                    //eprintln!("upstream write failed");
+                    //error!("upstream write failed");
                     upstream_write.shutdown(net::Shutdown::Both);
                     break;
                 }
             };
         }
-        //println!("Upload stream exited...");
+        debug!("Upload stream exited...");
     });
 }

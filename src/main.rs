@@ -1,7 +1,12 @@
 #![allow(non_snake_case)]
 #![allow(non_camel_case_types)]
+extern crate log;
+extern crate structopt;
+
 use std::process;
 use structopt::StructOpt;
+#[allow(unused_imports)]
+use log::{trace, debug, info, warn, error, Level};
 
 mod utils;
 mod server;
@@ -33,6 +38,8 @@ enum Opt {
         BUFFER_SIZE: usize,
         #[structopt(long)]
         TUN_IP: Option<String>,
+        #[structopt(short, long)]
+        VERBOSE: bool,
 
     },
     #[structopt(name = "client", about = "TT, The Tunnel, client side")]
@@ -51,12 +58,16 @@ enum Opt {
         BUFFER_SIZE: usize,
         #[structopt(long, conflicts_with = "listen-addr")]
         TUN_IP: Option<String>,
+        #[structopt(short, long)]
+        VERBOSE: bool,
     }
 }
 
 fn main() {
+    utils::my_log::init_with_level(Level::Debug).unwrap();
     match Opt::from_args() {
-        Opt::server{ LISTEN_ADDR, KEY, METHODS, RANGE, BUFFER_SIZE, TUN_IP } => {
+        Opt::server{ LISTEN_ADDR, KEY, METHODS, RANGE, BUFFER_SIZE, TUN_IP, VERBOSE } => {
+            set_verbose(VERBOSE);
             assert!(BUFFER_SIZE<=65536);
             let RANGE: Vec<&str> = RANGE.split("-").collect();
             let PORT_RANGE_START = RANGE[0].parse::<u32>().unwrap();
@@ -67,13 +78,14 @@ fn main() {
                 "aes-256-gcm" => &EncoderMethods::AES256,
                 "chacha20-poly1305" => &EncoderMethods::ChaCha20,
                 _ => {
-                    eprintln!("Methods [{}] not supported!", METHODS);
+                    error!("Methods [{}] not supported!", METHODS);
                     process::exit(-1);
                 }
             };
             server::run(KEY, METHODS, LISTEN_ADDR, PORT_RANGE_START, PORT_RANGE_END, BUFFER_SIZE, TUN_IP);
         },
-        Opt::client{ SERVER, LISTEN_ADDR, KEY, METHODS, RANGE, BUFFER_SIZE, TUN_IP } => {
+        Opt::client{ SERVER, LISTEN_ADDR, KEY, METHODS, RANGE, BUFFER_SIZE, TUN_IP, VERBOSE } => {
+            set_verbose(VERBOSE);
             assert!(BUFFER_SIZE<=65536);
             let RANGE: Vec<&str> = RANGE.split("-").collect();
             let PORT_RANGE_START = RANGE[0].parse::<u32>().unwrap();
@@ -85,11 +97,18 @@ fn main() {
                 "aes-256-gcm" => &EncoderMethods::AES256,
                 "chacha20-poly1305" => &EncoderMethods::ChaCha20,
                 _ => {
-                    eprintln!("Methods [{}] not supported!", METHODS);
+                    error!("Methods [{}] not supported!", METHODS);
                     process::exit(-1);
                 }
             };
             client::run(KEY, METHODS, SERVER_ADDR, LISTEN_ADDR, PORT_RANGE_START, PORT_RANGE_END, BUFFER_SIZE, TUN_IP);
         },
     }
+}
+
+fn set_verbose(VERBOSE :bool) {
+    if !VERBOSE {
+        log::set_max_level(Level::Info.to_level_filter());
+    }
+//    debug!("verbose output: on");
 }

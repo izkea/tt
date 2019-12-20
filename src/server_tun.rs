@@ -13,6 +13,9 @@ use tun::platform::posix;
 use crate::encoder::{Encoder};
 use std::net::{self, Ipv4Addr, TcpStream};
 
+#[allow(unused_imports)]
+use log::{trace, debug, info, warn, error, Level};
+
 #[cfg(target_os = "linux")]
 const STRIP_HEADER_LEN: usize = 0;
 #[cfg(target_os = "macos")]
@@ -20,14 +23,18 @@ const STRIP_HEADER_LEN: usize = 4;
 
 pub fn setup(tun_addr: &str, BUFFER_SIZE: usize) -> (posix::Reader, posix::Writer){
     let mut conf = tun::Configuration::default();
-    let (addr, mask) = utils::parse_CIDR(tun_addr);
+    let (addr, mask) = utils::parse_CIDR(tun_addr).unwrap_or_else(|_err|{
+        error!("Failed to parse CIDR address: [{}]", tun_addr);
+        process::exit(-1);
+    });
+
     conf.address(addr)
         .netmask(mask)
         .mtu((BUFFER_SIZE-60) as i32)
         .up();
 
     let iface = tun::create(&conf).unwrap_or_else(|err|{
-        eprintln!("Failed to create tun device, {}", err);
+        error!("Failed to create tun device, {}", err);
         process::exit(-1);
     });
 
@@ -72,7 +79,7 @@ pub fn handle_connection(connection_rx: mpsc::Receiver<(TcpStream, Encoder)>,
                 };
             }
         }
-        //println!("Download stream exited...");
+        debug!("Download stream exited...");
     });
 
 
@@ -82,8 +89,8 @@ pub fn handle_connection(connection_rx: mpsc::Receiver<(TcpStream, Encoder)>,
         let _clients = clients.clone();
         let mut _tun_writer = utils::tun_fd::TunFd::new(raw_fd);
         let _upload = thread::spawn(move || {
-            println!("========================================");
-            println!("Client from: [{}]", stream.peer_addr().unwrap());
+            info!("========================================================");
+            info!("New Conn: [{}] <=> [{}]", stream.local_addr().unwrap(), stream.peer_addr().unwrap());
             stream.set_nodelay(true);
             let mut index: usize = 0;
             let mut offset:  i32 = 4 + 1 + 12 + 2 + 16;         // maximum data size read at first
@@ -109,7 +116,7 @@ pub fn handle_connection(connection_rx: mpsc::Receiver<(TcpStream, Encoder)>,
                     let data = &buf[offset as usize - data_len .. offset as usize];
                     match _tun_writer.write(data) {
                         Ok(_) => (),
-                        Err(err) => eprintln!("tun write failed, {}", err)
+                        Err(err) => error!("tun write failed, {}", err)
                     };
 
                     if data[0] == 0x44 {            // got special 'ipv4 handshake' packet
@@ -137,13 +144,13 @@ pub fn handle_connection(connection_rx: mpsc::Receiver<(TcpStream, Encoder)>,
                     continue;
                 }
                 else if offset == -1 {
-                    eprintln!("Client first packet error!");
+                    error!("Client first packet error!");
                 }
                 stream.shutdown(net::Shutdown::Both);
                 return;
             }
 
-            println!("Client OK! with IP: [{}]", src_ip);
+            info!("Connection OK! with IP: [{}]", src_ip);
 
             index = 0;
             loop {
@@ -173,7 +180,7 @@ pub fn handle_connection(connection_rx: mpsc::Receiver<(TcpStream, Encoder)>,
                         }
                     }
                     else if _offset == -1 {
-                        eprintln!("Packet decode error from: [{}]", stream.peer_addr().unwrap());
+                        error!("Packet decode error from: [{}]", stream.peer_addr().unwrap());
                         if last_offset == -1 {
                             offset = -2;
                         }
@@ -197,7 +204,7 @@ pub fn handle_connection(connection_rx: mpsc::Receiver<(TcpStream, Encoder)>,
                 }
             }
             stream.shutdown(net::Shutdown::Both);
-            //println!("Upload stream exited...");
+            debug!("Upload stream exited...");
         });
     }
 }

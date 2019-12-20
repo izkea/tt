@@ -8,6 +8,9 @@ use std::sync::{Arc, Mutex, mpsc};
 
 use crate::utils;
 
+#[allow(unused_imports)]
+use log::{trace, debug, info, warn, error, Level};
+
 #[cfg(not(target_os = "windows"))]
 use crate::server_tun;
 use crate::server_socks5;
@@ -23,14 +26,18 @@ pub fn run(KEY:&'static str, METHOD:&'static EncoderMethods, BIND_ADDR:&'static 
     let tun = match TUN_IP{
         Some(tun_ip) => {
             if cfg!(target_os = "windows") {
-                eprintln!("Error: tun mode does not support windows for now");
+                error!("Error: tun mode does not support windows for now");
                 process::exit(-1);
             }
             #[cfg(not(target_os = "windows"))]
-            thread::spawn( move || server_tun::handle_connection(rx, BUFFER_SIZE, &tun_ip));
+            {
+                info!("TT {}, Server (tun mode)", env!("CARGO_PKG_VERSION"));
+                thread::spawn( move || server_tun::handle_connection(rx, BUFFER_SIZE, &tun_ip));
+            }
             true
         },
         None  => {
+            info!("TT {}, Server (socks5 mode)", env!("CARGO_PKG_VERSION"));
             thread::spawn( move || server_socks5::handle_connection(rx, BUFFER_SIZE));
             false
         }
@@ -76,14 +83,14 @@ fn start_listener(tx: mpsc::Sender<(net::TcpStream, Encoder)>, KEY:&'static str,
         EncoderMethods::AES256 => Encoder::AES256(AES256GCM::new(KEY, otp)),
         EncoderMethods::ChaCha20 => Encoder::ChaCha20(ChaCha20::new(KEY, otp)),
     };
-    println!("Open port : [{}], lifetime: [{}]", port, lifetime);
+    debug!("Open port : [{}], lifetime: [{}]", port, lifetime);
 
     let streams = Arc::new(Mutex::new(Vec::new())); 
     let flag_stop = Arc::new(Mutex::new(false));
     let listener = match net::TcpListener::bind(format!("{}:{}", BIND_ADDR, port)) {
         Ok(listener) => listener,
         Err(err) => {
-            eprintln!("Error binding port: [{}], {}", port, err);
+            error!("Error binding port: [{}], {}", port, err);
             return
         }
     };
@@ -133,7 +140,7 @@ fn start_listener(tx: mpsc::Sender<(net::TcpStream, Encoder)>, KEY:&'static str,
         tx.send((_stream, _encoder)).unwrap();
         streams.lock().unwrap().push(stream);
     }
-    println!("Close port: [{}], lifetime: [{}]", port, lifetime);
+    debug!("Close port: [{}], lifetime: [{}]", port, lifetime);
     
     // #TODO If we kill all the existing streams, then the client has to establish a new one to
     // resume downloading process. Also, if we kill streams at the very first seconeds of each

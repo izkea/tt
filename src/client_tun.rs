@@ -8,6 +8,9 @@ use std::io::prelude::*;
 use std::sync::{Arc, Mutex};
 use std::os::unix::io::{RawFd, IntoRawFd};
 
+#[allow(unused_imports)]
+use log::{trace, debug, info, warn, error, Level};
+
 extern crate tun;
 use crate::utils;
 use crate::client;
@@ -22,19 +25,22 @@ const STRIP_HEADER_LEN: usize = 4;
 pub fn run(KEY:&'static str, METHOD:&'static EncoderMethods, SERVER_ADDR:&'static str, 
             PORT_START:u32, PORT_END:u32, BUFFER_SIZE:usize, tun_addr: &str) {
 
-    let (addr, mask) = utils::parse_CIDR(tun_addr);
+    let (addr, mask) = utils::parse_CIDR(tun_addr).unwrap_or_else(|_err|{
+        error!("Failed to parse CIDR address: [{}]", tun_addr);
+        process::exit(-1);
+    });
 
     let tun_fd =
         if let Ok(value) = env::var("TT_TUN_FD"){
             value.parse::<RawFd>().unwrap()
         }
         else if let Ok(value) = env::var("TT_TUN_UDP_SOCKET_ADDR"){
-            println!("TT_TUN_UDP_SOCKET_ADDR:{}", value);
+            debug!("TT_TUN_UDP_SOCKET_ADDR:{}", value);
             process::exit(-1);
         }
         else if let Ok(value) = env::var("TT_TUN_UNIX_SOCKET_PATH") {
             utils::unix_seqpacket::connect(&value).unwrap_or_else(||{
-                eprintln!("Failed to connect to:{}", &value);
+                error!("Failed to connect to:{}", &value);
                 process::exit(-1);
             })
         }
@@ -46,7 +52,7 @@ pub fn run(KEY:&'static str, METHOD:&'static EncoderMethods, SERVER_ADDR:&'stati
                 .up();
 
             let iface = tun::create(&conf).unwrap_or_else(|_err|{
-                eprintln!("Failed to create tun device, {}", _err);
+                error!("Failed to create tun device, {}", _err);
                 process::exit(-1);
             });
             iface.into_raw_fd()
@@ -96,7 +102,7 @@ fn handle_tun_data(tun_fd: i32, KEY:&'static str, METHOD:&'static EncoderMethods
                 Ok(read_size) if read_size > 0 => read_size,
                 _ => {
                     index = 0;      // clear the buf
-                    // eprintln!("upstream read failed");
+                    // error!("upstream read failed");
                     // try to restore connection, and without 'first_packet', retry forever
                     let server_new = match client::tun_get_stream(KEY, METHOD, SERVER_ADDR, PORT_START, PORT_END, first_packet, 0){
                         Some((stream, encoder)) => Server {stream, encoder},
@@ -129,7 +135,7 @@ fn handle_tun_data(tun_fd: i32, KEY:&'static str, METHOD:&'static EncoderMethods
                     }
                 }
                 else if data_len == 0 && _offset == -1 {
-                     eprintln!("Packet decode error!");
+                     error!("Packet decode error!");
                      if last_offset == -1 {
                          offset = -2;
                      }
@@ -154,7 +160,7 @@ fn handle_tun_data(tun_fd: i32, KEY:&'static str, METHOD:&'static EncoderMethods
             }
         }
         stream_read.shutdown(net::Shutdown::Both);
-        println!("Download stream exited...");
+        debug!("Download stream exited...");
     
     });
 
@@ -170,7 +176,7 @@ fn handle_tun_data(tun_fd: i32, KEY:&'static str, METHOD:&'static EncoderMethods
             index = match tun_reader.read(&mut buf[..BUFFER_SIZE-60]) {
                 Ok(read_size) if read_size > 0 => read_size,
                 _ => {
-                    eprintln!("tun read failed");
+                    error!("tun read failed");
                     stream_write.shutdown(net::Shutdown::Both);
                     break;
                 }
@@ -184,7 +190,7 @@ fn handle_tun_data(tun_fd: i32, KEY:&'static str, METHOD:&'static EncoderMethods
                 match stream_write.write(&buf2[..index2]) {
                     Ok(_) => break,
                     _ => {
-                        //eprintln!("upstream write failed");
+                        //error!("upstream write failed");
                         // wait for the _download thread to restore the connection
                         // and will give up the data after 12 tries (total 1560ms)
                         thread::sleep(time::Duration::from_millis((retry * 20) as u64));
@@ -198,7 +204,7 @@ fn handle_tun_data(tun_fd: i32, KEY:&'static str, METHOD:&'static EncoderMethods
                 }
             }
         }
-        //println!("Upload stream exited...");
+        debug!("Upload stream exited...");
     });
 
     _download.join();

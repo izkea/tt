@@ -8,6 +8,9 @@ use std::io::prelude::*;
 use crate::encoder::{Encoder};
 use std::net::{SocketAddr, SocketAddrV4, SocketAddrV6, Ipv4Addr, Ipv6Addr, ToSocketAddrs, TcpStream};
 
+#[allow(unused_imports)]
+use log::{trace, debug, info, warn, error, Level};
+
 //pub fn handle_connection(&self, client_stream:net::TcpStream, encoder:Encoder) {
 pub fn handle_connection(rx: mpsc::Receiver<(TcpStream, Encoder)>, BUFFER_SIZE:usize){
     for (client_stream, encoder) in rx {
@@ -49,7 +52,7 @@ pub fn do_handle_connection(client_stream:TcpStream, encoder: Encoder, BUFFER_SI
         }
         upstream_read.shutdown(net::Shutdown::Both);
         client_stream_write.shutdown(net::Shutdown::Both);
-        //println!("Download stream exited...");
+        debug!("Download stream exited...");
     });
 
     // upload stream
@@ -82,7 +85,7 @@ pub fn do_handle_connection(client_stream:TcpStream, encoder: Encoder, BUFFER_SI
                     }
                 }
                 else if data_len == 0 && _offset == -1 {
-                    eprintln!("Packet decode error from: [{}]", client_stream_read.peer_addr().unwrap());
+                    error!("Packet decode error from: [{}]", client_stream_read.peer_addr().unwrap());
                     if last_offset == -1 {
                         offset = -2;
                     }
@@ -107,7 +110,7 @@ pub fn do_handle_connection(client_stream:TcpStream, encoder: Encoder, BUFFER_SI
         }
         client_stream_read.shutdown(net::Shutdown::Both);
         upstream_write.shutdown(net::Shutdown::Both);
-        //println!("Upload stream exited...");
+        debug!("Upload stream exited...");
     });
 }
 
