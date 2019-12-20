@@ -1,6 +1,6 @@
 [package]
 name = "tt"
-version = "0.6.0"
+version = "0.7.0"
 authors = ["The TT Team"]
 edition = "2018"
 
@@ -10,13 +10,16 @@ edition = "2018"
 tun = "0.4"
 
 [dependencies]
+libc = "*"
+time = "0.1"		# 0.2 does not support for local time zone for now
 rand = "0.7.2"
 oath = "0.10.2"
 sha2 = "0.8.0"
 aead = "0.1.1"
-libc = "*"
+colored = "1.9.0"
 aes-gcm = "0.1.0"
 chacha20poly1305 = "0.2"
+log = { version = "0.4", features = ["std"] }
 structopt = { version = "0.3", default-features = false }
 #job_scheduler = "1.0.6" 	# clokwerk is another good scheduler, able to run in background
 
