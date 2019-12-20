@@ -16,13 +16,15 @@ impl Log for SimpleLogger {
 
     fn log(&self, record: &Record) {
         if self.enabled(record.metadata()) {
-            let level_string = {
+            let level_str = record.level().to_string();
+            #[cfg(not(target_os = "windows"))]
+            let level_str = {
                 match record.level() {
-                    Level::Error => record.level().to_string().red(),
-                    Level::Warn => record.level().to_string().yellow(),
-                    Level::Info => record.level().to_string().white(),
-                    Level::Debug => record.level().to_string().purple(),
-                    Level::Trace => record.level().to_string().normal(),
+                    Level::Error => level_str.red(),
+                    Level::Warn  => level_str.yellow(),
+                    Level::Info  => level_str.white(),
+                    Level::Debug => level_str.purple(),
+                    Level::Trace => level_str.normal(),
                 }
             };
             let target = if record.target().len() > 0 {
@@ -33,7 +35,7 @@ impl Log for SimpleLogger {
             println!( "{} [{:<5}] [{}] {}",
 //                chrono::Local::now().format("%Y-%m-%d %H:%M:%S"),
                 time::now().strftime("%Y%m%d %T").unwrap().to_string(),
-                level_string,
+                level_str,
                 target,
                 record.args());
         }
