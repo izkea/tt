@@ -1,0 +1,59 @@
+name: TT_Auto_Build
+
+on: [push]
+
+jobs:
+  Linux_x86-64:
+    name: for Linux
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v1
+    - name: Build
+      run: cargo build --release
+    - name: Strip
+      run: 
+        strip target/release/tt;
+        mv target/release/tt tt_x86_64-unknown-linux-gnu;
+    - name : Upload
+      uses: actions/upload-artifact@master
+      with:
+        name: tt_x86_64-unknown-linux-gnu
+        path: tt_x86_64-unknown-linux-gnu
+
+  MacOS:
+    name: for MacOS
+    runs-on: macos-latest
+    steps:
+    - uses: actions/checkout@v1
+    - name: Install minimal nightly
+      uses: actions-rs/toolchain@v1
+      with:
+        profile: minimal
+        toolchain: nightly
+    - name: Build
+      run: cargo build --release
+    - name: Strip
+      run: 
+        strip target/release/tt;
+        mv target/release/tt tt_x86_64-apple-darwin;
+    - name : Upload
+      uses: actions/upload-artifact@master
+      with:
+        name: tt_x86_64-apple-darwin
+        path: tt_x86_64-apple-darwin
+
+  Windows:
+    name: for Windows
+    runs-on: windows-latest
+    steps:
+    - uses: actions/checkout@v1
+    - name: Build
+      run: cargo build --release
+    - name: Strip
+      run: 
+        mv target/release/tt.exe tt_x86_64-pc-windows-msvc.exe;
+    - name : Upload
+      uses: actions/upload-artifact@master
+      with:
+        name: tt_x86_64-pc-windows-msvc.exe
+        path: tt_x86_64-pc-windows-msvc.exe
