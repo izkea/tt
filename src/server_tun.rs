@@ -146,7 +146,7 @@ pub fn handle_connection(connection_rx: mpsc::Receiver<(TcpStream, Encoder)>,
                 else if offset == -1 {
                     error!("Client first packet error!");
                 }
-                stream.shutdown(net::Shutdown::Both);
+                //stream.shutdown(net::Shutdown::Both);
                 return;
             }
 
