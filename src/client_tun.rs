@@ -23,7 +23,7 @@ const STRIP_HEADER_LEN: usize = 0;
 const STRIP_HEADER_LEN: usize = 4;
 
 pub fn run(KEY:&'static str, METHOD:&'static EncoderMethods, SERVER_ADDR:&'static str, 
-            PORT_START:u32, PORT_END:u32, BUFFER_SIZE:usize, tun_addr: &str) {
+            PORT_START:u32, PORT_END:u32, BUFFER_SIZE:usize, tun_addr: &str, MTU:usize) {
 
     let (addr, mask) = utils::parse_CIDR(tun_addr).unwrap_or_else(|_err|{
         error!("Failed to parse CIDR address: [{}]", tun_addr);
@@ -48,7 +48,7 @@ pub fn run(KEY:&'static str, METHOD:&'static EncoderMethods, SERVER_ADDR:&'stati
             let mut conf = tun::Configuration::default();
             conf.address(addr)
                 .netmask(mask)
-                .mtu((BUFFER_SIZE-60) as i32)
+                .mtu(MTU as i32)
                 .up();
 
             let iface = tun::create(&conf).unwrap_or_else(|_err|{
@@ -173,7 +173,7 @@ fn handle_tun_data(tun_fd: i32, KEY:&'static str, METHOD:&'static EncoderMethods
         let mut stream_write = _server.lock().unwrap().stream.try_clone().unwrap();
         let mut encoder = _server.lock().unwrap().encoder.clone();
         loop {
-            index = match tun_reader.read(&mut buf[..BUFFER_SIZE-60]) {
+            index = match tun_reader.read(&mut buf) {
                 Ok(read_size) if read_size > 0 => read_size,
                 _ => {
                     error!("tun read failed");

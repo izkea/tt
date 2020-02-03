@@ -21,7 +21,7 @@ const STRIP_HEADER_LEN: usize = 0;
 #[cfg(target_os = "macos")]
 const STRIP_HEADER_LEN: usize = 4;
 
-pub fn setup(tun_addr: &str, BUFFER_SIZE: usize) -> (posix::Reader, posix::Writer){
+pub fn setup(tun_addr: &str, MTU: usize) -> (posix::Reader, posix::Writer){
     let mut conf = tun::Configuration::default();
     let (addr, mask) = utils::parse_CIDR(tun_addr).unwrap_or_else(|_err|{
         error!("Failed to parse CIDR address: [{}]", tun_addr);
@@ -30,7 +30,7 @@ pub fn setup(tun_addr: &str, BUFFER_SIZE: usize) -> (posix::Reader, posix::Write
 
     conf.address(addr)
         .netmask(mask)
-        .mtu((BUFFER_SIZE-60) as i32)
+        .mtu(MTU as i32)
         .up();
 
     let iface = tun::create(&conf).unwrap_or_else(|err|{
@@ -44,11 +44,11 @@ pub fn setup(tun_addr: &str, BUFFER_SIZE: usize) -> (posix::Reader, posix::Write
 
 //    pub fn handle_connection(&self, stream:net::TcpStream, encoder:Encoder) {
 pub fn handle_connection(connection_rx: mpsc::Receiver<(TcpStream, Encoder)>, 
-                        BUFFER_SIZE: usize, tun_ip: &str){
+                        BUFFER_SIZE: usize, tun_ip: &str, MTU: usize){
 
     let clients: HashMap<Ipv4Addr, (TcpStream, Encoder)> = HashMap::new();
     let clients = Arc::new(Mutex::new(clients));
-    let (mut tun_reader, tun_writer) = setup(tun_ip, BUFFER_SIZE);
+    let (mut tun_reader, tun_writer) = setup(tun_ip, MTU);
 
     let _clients = clients.clone();
 
@@ -57,7 +57,7 @@ pub fn handle_connection(connection_rx: mpsc::Receiver<(TcpStream, Encoder)>,
         let mut index: usize;
         let mut buf  = vec![0u8; BUFFER_SIZE];
         loop {
-            index = match tun_reader.read(&mut buf[..BUFFER_SIZE-60]) {
+            index = match tun_reader.read(&mut buf) {
                 Ok(read_size) if read_size > 0 => read_size,
                 _ => break
             };

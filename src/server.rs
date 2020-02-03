@@ -20,7 +20,7 @@ use crate::encoder::chacha20poly1305::ChaCha20;
 
 
 pub fn run(KEY:&'static str, METHOD:&'static EncoderMethods, BIND_ADDR:&'static str, 
-            PORT_START:u32, PORT_END:u32, BUFFER_SIZE:usize, TUN_IP: Option<String>) {
+            PORT_START:u32, PORT_END:u32, BUFFER_SIZE:usize, TUN_IP: Option<String>, MTU:usize) {
 
     let (tx, rx) = mpsc::channel();
     let tun = match TUN_IP{
@@ -32,7 +32,7 @@ pub fn run(KEY:&'static str, METHOD:&'static EncoderMethods, BIND_ADDR:&'static 
             #[cfg(not(target_os = "windows"))]
             {
                 info!("TT {}, Server (tun mode)", env!("CARGO_PKG_VERSION"));
-                thread::spawn( move || server_tun::handle_connection(rx, BUFFER_SIZE, &tun_ip));
+                thread::spawn( move || server_tun::handle_connection(rx, BUFFER_SIZE, &tun_ip, MTU));
             }
             true
         },
