@@ -67,44 +67,56 @@ Result:
 ### Usage 
 #### server
 ```
-tt-server 0.3.0
+tt-server 0.8.0
 TT, The Tunnel, server side
 
 USAGE:
-    tt server [OPTIONS] --key <key>
+    tt server [FLAGS] [OPTIONS] --key <key>
 
 FLAGS:
     -h, --help       Prints help information
     -V, --version    Prints version information
+    -v, --verbose
 
 OPTIONS:
-        --buffer-size <buffer-size>     [default: 4096]
     -k, --key <key>
-    -l, --listen <listen-addr>          [default: 0.0.0.0]
-    -m, --methods <methods>             [default: chacha20-poly1305]
-    -r, --port-range <range>            [default: 1024-65535]
+    -l, --listen <listen-addr>     [default: 0.0.0.0]
+    -m, --methods <methods>        [default: chacha20-poly1305]
+        --mtu <mtu>                [default: 1440]
+    -r, --port-range <range>       [default: 1024-65535]
         --tun-ip <tun-ip>
 ```
 
 #### client
 ```
-tt-client 0.3.0
+tt-client 0.8.0
 TT, The Tunnel, client side
 
 USAGE:
-    tt client [OPTIONS] --key <key> --server <server>
+    tt client [FLAGS] [OPTIONS] --key <key> --server <server>
 
 FLAGS:
     -h, --help       Prints help information
     -V, --version    Prints version information
+    -v, --verbose
 
 OPTIONS:
-        --buffer-size <buffer-size>     [default: 4096]
     -k, --key <key>
-    -l, --listen <listen-addr>          [default: 127.0.0.1:1080]
-    -m, --methods <methods>             [default: chacha20-poly1305]
-    -r, --port-range <range>            [default: 1024-65535]
+    -l, --listen <listen-addr>     [default: 127.0.0.1:1080]
+    -m, --methods <methods>        [default: chacha20-poly1305]
+        --mtu <mtu>                [default: 1440]
+    -r, --port-range <range>       [default: 1024-65535]
     -s, --server <server>
         --tun-ip <tun-ip>
 ```
+
+----
+#### About MTU problem:
+
+for systems with MTU < 1500, if tt runs on ```tun``` mode, you are supposed to
+* set ```--mtu [MTU] - 60```
+
+or
+
+* set [TCP MSS clamping](https://www.tldp.org/HOWTO/Adv-Routing-HOWTO/lartc.cookbook.mtu-mss.html): ```iptables -t mangle -I FORWARD -p tcp --tcp-flags SYN,RST SYN -j TCPMSS --clamp-mss-to-pmtu```
 
