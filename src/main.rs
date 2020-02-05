@@ -4,6 +4,8 @@ extern crate log;
 extern crate structopt;
 
 use std::process;
+use std::fs::File;
+use std::io::Write;
 use structopt::StructOpt;
 #[allow(unused_imports)]
 use log::{trace, debug, info, warn, error, Level};
@@ -40,7 +42,8 @@ enum Opt {
         TUN_IP: Option<String>,
         #[structopt(short, long)]
         VERBOSE: bool,
-
+        #[structopt(long)]
+        PID: Option<String>,
     },
     #[structopt(name = "client", about = "TT, The Tunnel, client side")]
     client {
@@ -60,13 +63,16 @@ enum Opt {
         TUN_IP: Option<String>,
         #[structopt(short, long)]
         VERBOSE: bool,
+        #[structopt(long)]
+        PID: Option<String>,
     }
 }
 
 fn main() {
     utils::my_log::init_with_level(Level::Debug).unwrap();
     match Opt::from_args() {
-        Opt::server{ LISTEN_ADDR, KEY, METHODS, RANGE, MTU, TUN_IP, VERBOSE } => {
+        Opt::server{ LISTEN_ADDR, KEY, METHODS, RANGE, MTU, TUN_IP, VERBOSE, PID } => {
+            write_pid(PID);
             set_verbose(VERBOSE);
             assert!(MTU<=65536);
             let RANGE: Vec<&str> = RANGE.split("-").collect();
@@ -85,7 +91,8 @@ fn main() {
             };
             server::run(KEY, METHODS, LISTEN_ADDR, PORT_RANGE_START, PORT_RANGE_END, BUFFER_SIZE, TUN_IP, MTU);
         },
-        Opt::client{ SERVER, LISTEN_ADDR, KEY, METHODS, RANGE, MTU, TUN_IP, VERBOSE } => {
+        Opt::client{ SERVER, LISTEN_ADDR, KEY, METHODS, RANGE, MTU, TUN_IP, VERBOSE, PID } => {
+            write_pid(PID);
             set_verbose(VERBOSE);
             assert!(MTU<=65536);
             let RANGE: Vec<&str> = RANGE.split("-").collect();
@@ -113,4 +120,16 @@ fn set_verbose(VERBOSE :bool) {
         log::set_max_level(Level::Info.to_level_filter());
     }
 //    debug!("verbose output: on");
+}
+fn write_pid(PID: Option<String>) {
+    info!("PID is {}", process::id());
+    match PID{
+        Some(pid) => {
+            let data = format!("{}", process::id());
+            let mut f = File::create(pid).expect("Unable to create file");
+            f.write_all(data.as_bytes()).expect("Unable to write data");
+        },
+        _ => {}
+    }
+    
 }
