@@ -29,27 +29,25 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-  # Linux_aarch64_musl:
-  #   name: for Linux_aarch64
-  #   runs-on: ubuntu-latest
-  #   steps:
-  #     - name: Checkout
-  #       uses: actions/checkout@v1
-  #     - name: Install gcc-aarch64-linux-gnu
-  #       run: sudo apt-get update --allow-unauthenticated -qq && sudo apt-get install -y gcc-aarch64-linux-gnu
-  #     - name: Ruspup
-  #       run: rustup target add aarch64-unknown-linux-musl
-  #     # - name: Setup tmate session
-  #     #   uses: mxschmitt/action-tmate@v1
-  #     - name: Build
-  #       run: CC=aarch64-linux-gnu-gcc cargo build --release --target aarch64-unknown-linux-musl
-  #     - name: Strip
-  #       run: strip target/aarch64-unknown-linux-musl/release/tt
-  #     - name: Move
-  #       run: mv target/aarch64-unknown-linux-musl/release/tt tt_aarch64-unknown-linux-musl
-  #     - name: Release
-  #       uses: softprops/action-gh-release@v1
-  #       with:
-  #         files: tt_aarch64-unknown-linux-musl
-  #       env:
-  #         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  Linux_aarch64_musl:
+    name: for Linux_aarch64
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v1
+      - name: Install gcc-aarch64-linux-gnu
+        run: sudo apt-get update --allow-unauthenticated -qq && sudo apt-get install -y gcc-aarch64-linux-gnu
+      - name: Ruspup
+        run: rustup target add aarch64-unknown-linux-musl
+      - name: Build
+        run: CC=aarch64-linux-gnu-gcc CFLAGS=-D_FORTIFY_SOURCE=1 cargo build --release --target aarch64-unknown-linux-musl
+      - name: Strip
+        run: aarch64-linux-gnu-strip target/aarch64-unknown-linux-musl/release/tt
+      - name: Move
+        run: mv target/aarch64-unknown-linux-musl/release/tt tt_aarch64-unknown-linux-musl
+      - name: Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: tt_aarch64-unknown-linux-musl
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
