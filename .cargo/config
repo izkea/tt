@@ -10,7 +10,12 @@ linker = "arm-linux-gnueabi-gcc"
 [target.arm-unknown-linux-musleabihf]
 linker = "arm-linux-gnueabihf-gcc"
 
-# for aarch64, like mips with cc-rs, we have to set env CC=aarch64-linux-gnu-gcc
+# for aarch64, like mips with cc-rs, we have to set env 'CC=aarch64-linux-gnu-gcc'
+# if run on ubuntu, we also need 'CFLAGS=-D_FORTIFY_SOURCE=1', 
+# to avoid some security check builtins of gcc, which of course not exist in musl.
+# Refer: https://stackoverflow.com/questions/13517526
+#		 https://wiki.ubuntu.com/ToolChain/CompilerFlags
+#		 https://gcc.gnu.org/onlinedocs/gcc-4.4.5/gcc/Object-Size-Checking.html
 [target.aarch64-unknown-linux-musl]
 linker = "aarch64-linux-gnu-gcc"
 rustflags = ["-C", "link-args=-lgcc"]    			# Fix the missing linking args on cargo build
