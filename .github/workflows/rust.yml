@@ -1,6 +1,9 @@
 name: TT_Auto_Build
 
-on: [push]
+on:
+  push:
+    tags:
+      - '*'
 
 jobs:
   Linux_x86-64:
