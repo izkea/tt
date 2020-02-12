@@ -16,7 +16,6 @@ rand = "0.7.2"
 oath = "0.10.2"
 sha2 = "0.8.0"
 aead = "0.1.1"
-nell = "0.2.0"
 colored = "1.9.0"
 aes-gcm = "0.1.0"
 lazy_static = "1.4"
@@ -25,3 +24,5 @@ log = { version = "0.4", features = ["std"] }
 structopt = { version = "0.3", default-features = false }
 #job_scheduler = "1.0.6" 	# clokwerk is another good scheduler, able to run in background
 
+[target.'cfg(target_os = "linux")'.dependencies]
+nell = "0.2.0"
