@@ -1,4 +1,6 @@
 #![allow(non_snake_case)]
+extern crate log;
+extern crate lazy_static;
 
 use std::net;
 use std::time;
@@ -7,6 +9,7 @@ use std::process;
 use std::sync::{Arc, Mutex, mpsc};
 
 use crate::utils;
+use lazy_static::lazy_static;
 
 #[allow(unused_imports)]
 use log::{trace, debug, info, warn, error, Level};
@@ -18,10 +21,15 @@ use crate::encoder::{Encoder, EncoderMethods};
 use crate::encoder::aes256gcm::AES256GCM;
 use crate::encoder::chacha20poly1305::ChaCha20;
 
+lazy_static! {
+    static ref NO_PORT_JUMP: Mutex<bool> = Mutex::new(false);
+}
 
 pub fn run(KEY:&'static str, METHOD:&'static EncoderMethods, BIND_ADDR:&'static str, 
-            PORT_START:u32, PORT_END:u32, BUFFER_SIZE:usize, TUN_IP: Option<String>, MTU:usize) {
+            PORT_START: u32, PORT_END: u32, BUFFER_SIZE: usize, TUN_IP: Option<String>,
+            MTU: usize, _NO_PORT_JUMP: bool) {
 
+    *NO_PORT_JUMP.lock().unwrap() = _NO_PORT_JUMP;
     let (tx, rx) = mpsc::channel();
     let tun = match TUN_IP{
         Some(tun_ip) => {
@@ -142,12 +150,12 @@ fn start_listener(tx: mpsc::Sender<(net::TcpStream, Encoder)>, KEY:&'static str,
     }
     debug!("Close port: [{}], lifetime: [{}]", port, lifetime);
     
-    // #TODO If we kill all the existing streams, then the client has to establish a new one to
+    // If we kill all the existing streams, then the client has to establish a new one to
     // resume downloading process. Also, if we kill streams at the very first seconeds of each
     // minute, this seems to be a traffic pattern.
     // so we disable it for socks5 mode, as client_frontend_socks5 will just drop the connection.
     
-    if tun {
+    if tun && !*NO_PORT_JUMP.lock().unwrap(){
         let lock = Arc::try_unwrap(streams).expect("Error: lock still has multiple owners");
         let streams = lock.into_inner().expect("Error: mutex cannot be locked");
         for stream in streams {

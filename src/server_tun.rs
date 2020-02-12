@@ -11,7 +11,7 @@ extern crate tun;
 use crate::utils;
 use tun::platform::posix;
 use crate::encoder::{Encoder};
-use std::net::{self, Ipv4Addr, TcpStream};
+use std::net::{self, IpAddr, Ipv4Addr, TcpStream};
 
 #[allow(unused_imports)]
 use log::{trace, debug, info, warn, error, Level};
@@ -49,6 +49,8 @@ pub fn handle_connection(connection_rx: mpsc::Receiver<(TcpStream, Encoder)>,
     let clients: HashMap<Ipv4Addr, (TcpStream, Encoder)> = HashMap::new();
     let clients = Arc::new(Mutex::new(clients));
     let (mut tun_reader, tun_writer) = setup(tun_ip, MTU);
+    #[cfg(target_os = "linux")]
+    let mut route = utils::route::Route::new();
 
     let _clients = clients.clone();
 
@@ -77,6 +79,20 @@ pub fn handle_connection(connection_rx: mpsc::Receiver<(TcpStream, Encoder)>,
                     Ok(_) => continue,
                     Err(_) => continue,   // if client has disconnected, continue
                 };
+            }
+
+            #[cfg(target_os = "linux")]     // lookup system route table, only for linux
+            {
+                if let Some(IpAddr::V4(next_hop)) = route.lookup(&dst_ip) {
+                    if let Some((stream, encoder)) = _clients.lock().unwrap().get(&next_hop) {
+                    index = encoder.encode(&mut buf[STRIP_HEADER_LEN..], index);
+                    let mut stream_write = stream.try_clone().unwrap();
+                    match stream_write.write(&buf[STRIP_HEADER_LEN..index+STRIP_HEADER_LEN]) {
+                        Ok(_) => continue,
+                        Err(_) => continue,   // if client has disconnected, continue
+                    };
+                    }
+                }
             }
         }
         debug!("Download stream exited...");

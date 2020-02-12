@@ -11,6 +11,8 @@ use std::net::Ipv4Addr;
 
 pub mod my_log;
 
+#[cfg(target_os = "linux")]
+pub mod route;
 #[cfg(not(target_os = "windows"))]
 pub mod tun_fd;
 #[cfg(not(target_os = "windows"))]

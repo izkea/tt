@@ -40,6 +40,8 @@ enum Opt {
         MTU: usize,
         #[structopt(long)]
         TUN_IP: Option<String>,
+        #[structopt(long="no-port-jump-on-tun-mode")]
+        NO_PORT_JUMP: bool,
         #[structopt(short, long)]
         VERBOSE: bool,
         #[structopt(long)]
@@ -71,7 +73,7 @@ enum Opt {
 fn main() {
     utils::my_log::init_with_level(Level::Debug).unwrap();
     match Opt::from_args() {
-        Opt::server{ LISTEN_ADDR, KEY, METHODS, RANGE, MTU, TUN_IP, VERBOSE, PID } => {
+        Opt::server{ LISTEN_ADDR, KEY, METHODS, RANGE, MTU, TUN_IP, NO_PORT_JUMP, VERBOSE, PID } => {
             write_pid(PID);
             set_verbose(VERBOSE);
             assert!(MTU<=65536);
@@ -89,7 +91,7 @@ fn main() {
                     process::exit(-1);
                 }
             };
-            server::run(KEY, METHODS, LISTEN_ADDR, PORT_RANGE_START, PORT_RANGE_END, BUFFER_SIZE, TUN_IP, MTU);
+            server::run(KEY, METHODS, LISTEN_ADDR, PORT_RANGE_START, PORT_RANGE_END, BUFFER_SIZE, TUN_IP, MTU, NO_PORT_JUMP);
         },
         Opt::client{ SERVER, LISTEN_ADDR, KEY, METHODS, RANGE, MTU, TUN_IP, VERBOSE, PID } => {
             write_pid(PID);
