@@ -1,5 +1,5 @@
 merge:
-	git fetch upstream
+	git fetch upstream --no-tags
 	git merge upstream/master
 
 push:
