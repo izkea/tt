@@ -46,28 +46,28 @@ Result:
     - [x] TUN support (for Linux
 	- [x] UTUN support (for MacOS
 	- [ ] [WinTUN](https://www.wintun.net/) support (for Windows
+	- [x] forward packet based on system route
 - [x] Encryption
     - [x] chacha20-poly1305
     - [x] aes-256-gcm
-- [x] Encryption block size
-	- [x] configurable max block size ('--buffer-size', WARNING: less than 1400 will leave a serious traffic pattern)
 - [x] Binary tool
-    - [x] single binary serves as both server and client, with brief options
+    - [x] single binary (serves as both server and client)
     - [ ] daemon mode support
 - [ ] Hook API 
     - [ ] encode/decode hook api (consider eBPF)
 - [ ] Fake traffic
     - [ ] fake http/https server
     - [ ] fake http/https traffic from client
-- [ ] Multiple servers
+- [ ] Multiple servers (load balancer)
     - [ ] support multiple servers
-    - [ ] support for setting different weight for each server
+	- [ ] balance-rr mode
+	- [ ] active-backup mode
 
 ----
 ### Usage 
 #### server
 ```
-tt-server 0.8.0
+tt-server 0.9.0
 TT, The Tunnel, server side
 
 USAGE:
@@ -75,6 +75,7 @@ USAGE:
 
 FLAGS:
     -h, --help       Prints help information
+	    --no-port-jump-on-tun-mode
     -V, --version    Prints version information
     -v, --verbose
 
@@ -89,7 +90,7 @@ OPTIONS:
 
 #### client
 ```
-tt-client 0.8.0
+tt-client 0.9.0
 TT, The Tunnel, client side
 
 USAGE:
