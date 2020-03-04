@@ -55,8 +55,12 @@ pub fn run(KEY:&'static str, METHOD:&'static EncoderMethods, BIND_ADDR:&'static 
     let _tx1 = tx.clone();
     let _tx2 = tx.clone();
     let _tx3 = tx.clone();
-    thread::spawn( move || start_listener(_tx1, KEY, METHOD, BIND_ADDR, PORT_START, PORT_END, time_now - 1, tun));
+    if (PORT_END - PORT_START) > 2 {
+        thread::spawn( move || start_listener(_tx1, KEY, METHOD, BIND_ADDR, PORT_START, PORT_END, time_now - 1, tun));
+        thread::sleep(time::Duration::from_millis(100));
+    }
     thread::spawn( move || start_listener(_tx2, KEY, METHOD, BIND_ADDR, PORT_START, PORT_END, time_now    , tun));
+    thread::sleep(time::Duration::from_millis(100));
     thread::spawn( move || start_listener(_tx3, KEY, METHOD, BIND_ADDR, PORT_START, PORT_END, time_now + 1, tun));
 
     loop {
@@ -64,6 +68,9 @@ pub fn run(KEY:&'static str, METHOD:&'static EncoderMethods, BIND_ADDR:&'static 
         let time_now = utils::get_secs_now();
         if time_now % 60 >= 2 { continue; };  // once a minute
         let _tx = tx.clone();
+        thread::sleep(time::Duration::from_secs(3));    // wait for conflicted port to close itself,
+                                                        // and not conflict with any thread
+                                                        // that waiting for this same port
         thread::spawn( move || start_listener(
             _tx, KEY, METHOD, BIND_ADDR, PORT_START, PORT_END, utils::get_secs_now()/60 + 1, tun)
         );
@@ -95,6 +102,7 @@ fn start_listener(tx: mpsc::Sender<(net::TcpStream, Encoder)>, KEY:&'static str,
 
     let streams = Arc::new(Mutex::new(Vec::new())); 
     let flag_stop = Arc::new(Mutex::new(false));
+/*
     let listener = match net::TcpListener::bind(format!("{}:{}", BIND_ADDR, port)) {
         Ok(listener) => listener,
         Err(err) => {
@@ -102,6 +110,29 @@ fn start_listener(tx: mpsc::Sender<(net::TcpStream, Encoder)>, KEY:&'static str,
             return
         }
     };
+
+*/
+    let listener;
+    let mut retry = 0;
+    loop {
+        match net::TcpListener::bind(format!("{}:{}", BIND_ADDR, port)) {
+            Ok(_listener) => {
+                listener = _listener;
+                break;
+            },
+            Err(err) if err.kind() != std::io::ErrorKind::AddrInUse => {
+                error!("Error binding port: [{}], {:?}", port, err);
+                return
+            },
+            Err(_) => debug!("Port: [{}] in use, {:?}, retry in 2 secs...", port, thread::current().id())
+        }
+        retry += 1;
+        thread::sleep(time::Duration::from_secs(2));
+        if retry >= 33 {     // give up after 66 secs
+            error!("Failed binding port: [{}], after {} secs", port, retry * 2);
+            return
+        }
+    }
 
     /*  1. not using JobScheduler, cause it adds too much stupid code here.
      *  2. can't find a proper way to drop listener inside _timer_thread, 
@@ -113,12 +144,14 @@ fn start_listener(tx: mpsc::Sender<(net::TcpStream, Encoder)>, KEY:&'static str,
     let _flag_stop = Arc::clone(&flag_stop);
     let _timer_thread = thread::spawn(move || {
         loop {
-            thread::sleep(time::Duration::from_secs(3));
+            thread::sleep(time::Duration::from_secs(2));
             let time_now = utils::get_secs_now();
-            if time_now % 60 >= 3 || time_now/60 < time_start { continue; };  // once a minute
+            if time_now % 60 >= 2 || time_now/60 < time_start { continue };  // once a minute
             let time_diff = (time_now / 60 - time_start) as u8;
+
+            // check lifetime
             if time_diff >= lifetime || time_diff > 2 && _streams.lock().unwrap().len() == 0 {
-                // sleep some secs, to avoid that we always disconnect the client in the first
+                // sleep some secs, to avoid that we always disconnect the client at the first
                 // secs of every minute, that's a obvious traffic pattern as well.
                 thread::sleep(time::Duration::from_secs((rand::random::<u8>() % 60) as u64));
                 *_flag_stop.lock().unwrap() = true;
@@ -126,6 +159,21 @@ fn start_listener(tx: mpsc::Sender<(net::TcpStream, Encoder)>, KEY:&'static str,
                 drop(_flag_stop);
                 net::TcpStream::connect(format!("127.0.0.1:{}", port)).unwrap();
                 break;
+            }
+            // avoid conflicted ports, stop listening, but do not kill established connections
+            else if utils::get_port(utils::get_otp(KEY, time_now/60+1), PORT_RANGE_START, PORT_RANGE_END) == port {
+                // time_diff > 0
+                if time_diff > 0 {
+                    *_flag_stop.lock().unwrap() = true;
+                    drop(_streams);
+                    drop(_flag_stop);
+                    net::TcpStream::connect(format!("127.0.0.1:{}", port)).unwrap();
+                    break;
+                }
+                // time_diff == 0
+                else {
+                    // do nothing, let the new thread wait or fail
+                }
             }
         }
     });
