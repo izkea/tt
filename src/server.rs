@@ -30,7 +30,13 @@ pub fn run(KEY:&'static str, METHOD:&'static EncoderMethods, BIND_ADDR:&'static 
             MTU: usize, _NO_PORT_JUMP: bool) {
 
     *NO_PORT_JUMP.lock().unwrap() = _NO_PORT_JUMP;
-    let (tx, rx) = mpsc::channel();
+
+    let (tx_tun, rx_tun) = mpsc::channel();
+    let (tx_socks5, rx_socks5) = mpsc::channel();
+
+    info!("TT {}, Server (socks5 mode)", env!("CARGO_PKG_VERSION"));
+    thread::spawn( move || server_socks5::handle_connection(rx_socks5, BUFFER_SIZE));
+
     let tun = match TUN_IP{
         Some(tun_ip) => {
             if cfg!(target_os = "windows") {
@@ -40,39 +46,41 @@ pub fn run(KEY:&'static str, METHOD:&'static EncoderMethods, BIND_ADDR:&'static 
             #[cfg(not(target_os = "windows"))]
             {
                 info!("TT {}, Server (tun mode)", env!("CARGO_PKG_VERSION"));
-                thread::spawn( move || server_tun::handle_connection(rx, BUFFER_SIZE, &tun_ip, MTU));
+                thread::spawn( move || server_tun::handle_connection(rx_tun, BUFFER_SIZE, &tun_ip, MTU));
             }
             true
         },
-        None  => {
-            info!("TT {}, Server (socks5 mode)", env!("CARGO_PKG_VERSION"));
-            thread::spawn( move || server_socks5::handle_connection(rx, BUFFER_SIZE));
-            false
-        }
+        None => false
     };
 
     let time_now = utils::get_secs_now() / 60;
-    let _tx1 = tx.clone();
-    let _tx2 = tx.clone();
-    let _tx3 = tx.clone();
+    let _tx_tun = tx_tun.clone();
+    let _tx_socks5 = tx_socks5.clone();
     if (PORT_END - PORT_START) > 2 {
-        thread::spawn( move || start_listener(_tx1, KEY, METHOD, BIND_ADDR, PORT_START, PORT_END, time_now - 1, tun));
+        thread::spawn( move || start_listener(_tx_tun, _tx_socks5, KEY, METHOD, BIND_ADDR, PORT_START, PORT_END, time_now - 1, tun));
         thread::sleep(time::Duration::from_millis(100));
     }
-    thread::spawn( move || start_listener(_tx2, KEY, METHOD, BIND_ADDR, PORT_START, PORT_END, time_now    , tun));
+
+    let _tx_tun = tx_tun.clone();
+    let _tx_socks5 = tx_socks5.clone();
+    thread::spawn( move || start_listener(_tx_tun, _tx_socks5, KEY, METHOD, BIND_ADDR, PORT_START, PORT_END, time_now    , tun));
     thread::sleep(time::Duration::from_millis(100));
-    thread::spawn( move || start_listener(_tx3, KEY, METHOD, BIND_ADDR, PORT_START, PORT_END, time_now + 1, tun));
+
+    let _tx_tun = tx_tun.clone();
+    let _tx_socks5 = tx_socks5.clone();
+    thread::spawn( move || start_listener(_tx_tun, _tx_socks5, KEY, METHOD, BIND_ADDR, PORT_START, PORT_END, time_now + 1, tun));
 
     loop {
         thread::sleep(time::Duration::from_secs(2));
         let time_now = utils::get_secs_now();
         if time_now % 60 >= 2 { continue; };  // once a minute
-        let _tx = tx.clone();
         thread::sleep(time::Duration::from_secs(3));    // wait for conflicted port to close itself,
                                                         // and not conflict with any thread
                                                         // that waiting for this same port
+        let _tx_tun = tx_tun.clone();
+        let _tx_socks5 = tx_socks5.clone();
         thread::spawn( move || start_listener(
-            _tx, KEY, METHOD, BIND_ADDR, PORT_START, PORT_END, utils::get_secs_now()/60 + 1, tun)
+            _tx_tun, _tx_socks5, KEY, METHOD, BIND_ADDR, PORT_START, PORT_END, utils::get_secs_now()/60 + 1, tun)
         );
     }
 
@@ -89,8 +97,9 @@ pub fn run(KEY:&'static str, METHOD:&'static EncoderMethods, BIND_ADDR:&'static 
     */
 }
 
-fn start_listener(tx: mpsc::Sender<(net::TcpStream, Encoder)>, KEY:&'static str, METHOD:&EncoderMethods, 
-    BIND_ADDR:&'static str, PORT_RANGE_START:u32, PORT_RANGE_END:u32, time_start:u64, tun: bool) {
+fn start_listener(tx_tun: mpsc::Sender<(net::TcpStream, Encoder)>, tx_socks5: mpsc::Sender<(net::TcpStream, Encoder)>,
+        KEY:&'static str, METHOD:&EncoderMethods, BIND_ADDR:&'static str,
+        PORT_RANGE_START:u32, PORT_RANGE_END:u32, time_start:u64, tun: bool) {
     let otp = utils::get_otp(KEY, time_start);
     let port = utils::get_port(otp, PORT_RANGE_START, PORT_RANGE_END);
     let lifetime = utils::get_lifetime(otp);
@@ -178,7 +187,7 @@ fn start_listener(tx: mpsc::Sender<(net::TcpStream, Encoder)>, KEY:&'static str,
         }
     });
 
-
+    let mut buf_peek = [0u8; 512];
     for stream in listener.incoming() {
         if *flag_stop.lock().unwrap() { 
             drop(listener); 
@@ -192,9 +201,26 @@ fn start_listener(tx: mpsc::Sender<(net::TcpStream, Encoder)>, KEY:&'static str,
             Ok(_stream) => _stream,
             Err(_) => continue,                     // same as above
         };
+
+        let tx_tun = tx_tun.clone();
+        let tx_socks5 = tx_socks5.clone();
+        let streams = streams.clone();
         let _encoder = encoder.clone();
-        tx.send((_stream, _encoder)).unwrap();
-        streams.lock().unwrap().push(stream);
+        thread::spawn( move || {
+            let len = _stream.peek(&mut buf_peek).expect("Failed: _stream.peek()");
+            let (data_len, offset) = _encoder.decode(&mut buf_peek[..len]);
+            //debug!("peek length: {}, data length: {}", len, data_len);
+            if (data_len == 3 || data_len == 4) && buf_peek[offset as usize - data_len] == 0x05 {
+                tx_socks5.send((_stream, _encoder)).expect("Failed: tx_socks5.send()");
+            }
+            else if tun {
+                tx_tun.send((_stream, _encoder)).unwrap();
+                streams.lock().unwrap().push(stream);       // only push tun mode streams into that, to disconnect
+            }
+            else {
+                streams.lock().unwrap().push(stream);       // push wild streams here, waiting to die
+            }
+        });
     }
     debug!("Close port: [{}], lifetime: [{}]", port, lifetime);
     
@@ -203,7 +229,7 @@ fn start_listener(tx: mpsc::Sender<(net::TcpStream, Encoder)>, KEY:&'static str,
     // minute, this seems to be a traffic pattern.
     // so we disable it for socks5 mode, as client_frontend_socks5 will just drop the connection.
     
-    if tun && !*NO_PORT_JUMP.lock().unwrap(){
+    if !*NO_PORT_JUMP.lock().unwrap(){
         let lock = Arc::try_unwrap(streams).expect("Error: lock still has multiple owners");
         let streams = lock.into_inner().expect("Error: mutex cannot be locked");
         for stream in streams {
