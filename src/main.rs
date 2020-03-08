@@ -69,7 +69,6 @@ fn main() {
     match Opt::from_args() {
         Opt::server{ LISTEN_ADDR, KEY, METHODS, RANGE, MTU, TUN_IP, NO_PORT_JUMP, VERBOSE } => {
             set_verbose(VERBOSE);
-            assert!(MTU<=65536);
             let RANGE: Vec<&str> = RANGE.split("-").collect();
             let BUFFER_SIZE = if MTU > (4096 - 60) { MTU + 60 } else { 4096 };
             let PORT_RANGE_START = RANGE[0].parse::<u32>().unwrap();
@@ -84,6 +83,8 @@ fn main() {
                     process::exit(-1);
                 }
             };
+            assert!(MTU<=65536);
+            assert!(PORT_RANGE_START <= PORT_RANGE_END);
             server::run(KEY, METHODS, LISTEN_ADDR, PORT_RANGE_START, PORT_RANGE_END, BUFFER_SIZE, TUN_IP, MTU, NO_PORT_JUMP);
         },
         Opt::client{ SERVER, LISTEN_ADDR, KEY, METHODS, RANGE, MTU, TUN_IP, VERBOSE } => {
@@ -104,6 +105,8 @@ fn main() {
                     process::exit(-1);
                 }
             };
+            assert!(MTU<=65536);
+            assert!(PORT_RANGE_START <= PORT_RANGE_END);
             client::run(KEY, METHODS, SERVER_ADDR, LISTEN_ADDR, PORT_RANGE_START, PORT_RANGE_END, BUFFER_SIZE, TUN_IP, MTU);
         },
     }
