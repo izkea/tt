@@ -214,17 +214,23 @@ fn start_listener(tx_tun: mpsc::Sender<(net::TcpStream, Encoder)>, tx_socks5: mp
         let streams = streams.clone();
         let _encoder = encoder.clone();
         thread::spawn( move || {
-            let len = _stream.peek(&mut buf_peek).expect("Failed: _stream.peek()");
-            let (data_len, offset) = _encoder.decode(&mut buf_peek[..len]);
-            //debug!("peek length: {}, data length: {}", len, data_len);
-            if (data_len == 3 || data_len == 4) && buf_peek[offset as usize - data_len] == 0x05 && *SOCKS5_MODE.lock().unwrap(){
+            if *SOCKS5_MODE.lock().unwrap() && *TUN_MODE.lock().unwrap() {
+                let len = _stream.peek(&mut buf_peek).expect("Failed: _stream.peek()");
+                let (data_len, offset) = _encoder.decode(&mut buf_peek[..len]);
+                //debug!("peek length: {}, data length: {}", len, data_len);
+                if (data_len == 3 || data_len == 4) && buf_peek[offset as usize - data_len] == 0x05 {
+                    tx_socks5.send((_stream, _encoder)).expect("Failed: tx_socks5.send()");
+                }
+                else {
+                    tx_tun.send((_stream, _encoder)).unwrap();
+                    streams.lock().unwrap().push(stream);       // only push tun mode streams into that, to disconnect
+                }
+            }
+            else if *SOCKS5_MODE.lock().unwrap(){
                 tx_socks5.send((_stream, _encoder)).expect("Failed: tx_socks5.send()");
             }
-            else if *TUN_MODE.lock().unwrap() {
+            else if *TUN_MODE.lock().unwrap(){
                 tx_tun.send((_stream, _encoder)).unwrap();
-                streams.lock().unwrap().push(stream);       // only push tun mode streams into that, to disconnect
-            }
-            else {
                 streams.lock().unwrap().push(stream);       // push wild streams here, waiting to die
             }
         });
