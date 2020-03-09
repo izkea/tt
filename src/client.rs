@@ -55,7 +55,8 @@ pub fn tun_get_stream(KEY:&'static str, METHOD:&'static EncoderMethods, SERVER_A
     let mut buf = vec![0u8;128];
     let mut len = first_packet.len();
     loop {
-        match get_stream(KEY, METHOD, utils::get_secs_now() / 60 + 1, SERVER_ADDR, PORT_START, PORT_END) {
+//        match get_stream(KEY, METHOD, utils::get_secs_now() / 60 + 1, SERVER_ADDR, PORT_START, PORT_END) {
+        match get_stream(KEY, METHOD, 0, SERVER_ADDR, PORT_START, PORT_END) {
             Ok((mut stream, encoder)) =>{
                 stream.set_nodelay(true);
                 if len > 0 {
