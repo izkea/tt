@@ -116,9 +116,9 @@ pub fn do_handle_connection(client_stream:TcpStream, encoder: Encoder, BUFFER_SI
 
 pub fn simple_socks5_handshake(mut stream: TcpStream, encoder:Encoder) -> Result<TcpStream, Box<dyn Error>>{
     let mut buf = [0u8; 512];
-    stream.read(&mut buf)?;
-    let (data_len, offset) = encoder.decode(&mut buf);
-    if data_len == 0 || buf[offset as usize - data_len] != 0x05 {
+    let len = stream.read(&mut buf)?;
+    let (data_len, offset) = encoder.decode(&mut buf[..len]);
+    if (data_len != 3 && data_len != 4) || buf[offset as usize - data_len] != 0x05 {
         return Err("not socks5".into());            // not socks5
     }
 
