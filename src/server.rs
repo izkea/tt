@@ -22,22 +22,20 @@ use crate::encoder::aes256gcm::AES256GCM;
 use crate::encoder::chacha20poly1305::ChaCha20;
 
 lazy_static! {
-    static ref NO_PORT_JUMP: Mutex<bool> = Mutex::new(false);
+    static ref TUN_MODE:    Mutex<bool> = Mutex::new(false);
+    static ref SOCKS5_MODE: Mutex<bool> = Mutex::new(false);
+    static ref NO_PORT_JUMP:Mutex<bool> = Mutex::new(false);
 }
 
 pub fn run(KEY:&'static str, METHOD:&'static EncoderMethods, BIND_ADDR:&'static str, 
             PORT_START: u32, PORT_END: u32, BUFFER_SIZE: usize, TUN_IP: Option<String>,
-            MTU: usize, _NO_PORT_JUMP: bool) {
-
-    *NO_PORT_JUMP.lock().unwrap() = _NO_PORT_JUMP;
+            MTU: usize, _NO_PORT_JUMP: bool, _NO_SOCKS5: bool) {
 
     let (tx_tun, rx_tun) = mpsc::channel();
     let (tx_socks5, rx_socks5) = mpsc::channel();
+    *NO_PORT_JUMP.lock().unwrap() = _NO_PORT_JUMP;
 
-    info!("TT {}, Server (socks5 mode)", env!("CARGO_PKG_VERSION"));
-    thread::spawn( move || server_socks5::handle_connection(rx_socks5, BUFFER_SIZE));
-
-    let tun = match TUN_IP{
+    *TUN_MODE.lock().unwrap() = match TUN_IP{
         Some(tun_ip) => {
             if cfg!(target_os = "windows") {
                 error!("Error: tun mode does not support windows for now");
@@ -53,22 +51,31 @@ pub fn run(KEY:&'static str, METHOD:&'static EncoderMethods, BIND_ADDR:&'static 
         None => false
     };
 
+    *SOCKS5_MODE.lock().unwrap() = match _NO_SOCKS5 {
+        false => {
+            info!("TT {}, Server (socks5 mode)", env!("CARGO_PKG_VERSION"));
+            thread::spawn( move || server_socks5::handle_connection(rx_socks5, BUFFER_SIZE));
+            true
+        },
+        true => false
+    };
+
     let time_now = utils::get_secs_now() / 60;
     let _tx_tun = tx_tun.clone();
     let _tx_socks5 = tx_socks5.clone();
     if (PORT_END - PORT_START) > 2 {
-        thread::spawn( move || start_listener(_tx_tun, _tx_socks5, KEY, METHOD, BIND_ADDR, PORT_START, PORT_END, time_now - 1, tun));
+        thread::spawn( move || start_listener(_tx_tun, _tx_socks5, KEY, METHOD, BIND_ADDR, PORT_START, PORT_END, time_now - 1));
         thread::sleep(time::Duration::from_millis(100));
     }
 
     let _tx_tun = tx_tun.clone();
     let _tx_socks5 = tx_socks5.clone();
-    thread::spawn( move || start_listener(_tx_tun, _tx_socks5, KEY, METHOD, BIND_ADDR, PORT_START, PORT_END, time_now    , tun));
+    thread::spawn( move || start_listener(_tx_tun, _tx_socks5, KEY, METHOD, BIND_ADDR, PORT_START, PORT_END, time_now));
     thread::sleep(time::Duration::from_millis(100));
 
     let _tx_tun = tx_tun.clone();
     let _tx_socks5 = tx_socks5.clone();
-    thread::spawn( move || start_listener(_tx_tun, _tx_socks5, KEY, METHOD, BIND_ADDR, PORT_START, PORT_END, time_now + 1, tun));
+    thread::spawn( move || start_listener(_tx_tun, _tx_socks5, KEY, METHOD, BIND_ADDR, PORT_START, PORT_END, time_now + 1));
 
     loop {
         thread::sleep(time::Duration::from_secs(2));
@@ -80,7 +87,7 @@ pub fn run(KEY:&'static str, METHOD:&'static EncoderMethods, BIND_ADDR:&'static 
         let _tx_tun = tx_tun.clone();
         let _tx_socks5 = tx_socks5.clone();
         thread::spawn( move || start_listener(
-            _tx_tun, _tx_socks5, KEY, METHOD, BIND_ADDR, PORT_START, PORT_END, utils::get_secs_now()/60 + 1, tun)
+            _tx_tun, _tx_socks5, KEY, METHOD, BIND_ADDR, PORT_START, PORT_END, utils::get_secs_now()/60 + 1)
         );
     }
 
@@ -99,7 +106,7 @@ pub fn run(KEY:&'static str, METHOD:&'static EncoderMethods, BIND_ADDR:&'static 
 
 fn start_listener(tx_tun: mpsc::Sender<(net::TcpStream, Encoder)>, tx_socks5: mpsc::Sender<(net::TcpStream, Encoder)>,
         KEY:&'static str, METHOD:&EncoderMethods, BIND_ADDR:&'static str,
-        PORT_RANGE_START:u32, PORT_RANGE_END:u32, time_start:u64, tun: bool) {
+        PORT_RANGE_START:u32, PORT_RANGE_END:u32, time_start:u64) {
     let otp = utils::get_otp(KEY, time_start);
     let port = utils::get_port(otp, PORT_RANGE_START, PORT_RANGE_END);
     let lifetime = utils::get_lifetime(otp);
@@ -210,10 +217,10 @@ fn start_listener(tx_tun: mpsc::Sender<(net::TcpStream, Encoder)>, tx_socks5: mp
             let len = _stream.peek(&mut buf_peek).expect("Failed: _stream.peek()");
             let (data_len, offset) = _encoder.decode(&mut buf_peek[..len]);
             //debug!("peek length: {}, data length: {}", len, data_len);
-            if (data_len == 3 || data_len == 4) && buf_peek[offset as usize - data_len] == 0x05 {
+            if (data_len == 3 || data_len == 4) && buf_peek[offset as usize - data_len] == 0x05 && *SOCKS5_MODE.lock().unwrap(){
                 tx_socks5.send((_stream, _encoder)).expect("Failed: tx_socks5.send()");
             }
-            else if tun {
+            else if *TUN_MODE.lock().unwrap() {
                 tx_tun.send((_stream, _encoder)).unwrap();
                 streams.lock().unwrap().push(stream);       // only push tun mode streams into that, to disconnect
             }
