@@ -119,6 +119,7 @@ pub fn simple_socks5_handshake(mut stream: TcpStream, encoder:Encoder) -> Result
     let _len = stream.read(&mut buf)?;
 
 //  we skip the check here, cause it's already done in server.rs
+//
 //    let (data_len, offset) = encoder.decode(&mut buf[.._len]);
 //    if (data_len != 3 && data_len != 4) || buf[offset as usize - data_len] != 0x05 {
 //        return Err("not socks5".into());            // not socks5

@@ -214,47 +214,23 @@ fn start_listener(tx_tun: mpsc::Sender<(net::TcpStream, Encoder)>, tx_socks5: mp
         let streams = streams.clone();
         let _encoder = encoder.clone();
         thread::spawn( move || {
-            let len = _stream.peek(&mut buf_peek).expect("Failed: _stream.peek()");
-            let (data_len, offset) = _encoder.decode(&mut buf_peek[..len]);
-            let index = offset as usize - data_len;
-            //debug!("peek length: {}, data length: {}", len, data_len);
-            if (data_len == 2 + buf_peek[index+1] as usize) && buf_peek[index] == 0x05 && *SOCKS5_MODE.lock().unwrap() {
-                tx_socks5.send((_stream, _encoder)).expect("Failed: tx_socks5.send()");
+            match _stream.peek(&mut buf_peek) {
+                Ok(len) if len > 1 => {         // encoder.decode() needs at least 2 bytes, otherwise it will panic
+                    let (data_len, offset) = _encoder.decode(&mut buf_peek[..len]);
+                    let index = offset as usize - data_len;
+                    //debug!("peek length: {}, data length: {}", len, data_len);
+                    if (data_len==2+buf_peek[index+1] as usize) && buf_peek[index]==0x05 && *SOCKS5_MODE.lock().unwrap(){
+                        tx_socks5.send((_stream, _encoder)).expect("Failed: tx_socks5.send()");
+                        return                                      // no need to push socks5 stream to die
+                    }
+                    // IP header length: v4>=20, v6>=40, our defined first packet: v4=5, v6=...
+                    else if data_len>=5 && (buf_peek[index]>>4==0x4 || buf_peek[index]>>4==0x6) && *TUN_MODE.lock().unwrap(){
+                        tx_tun.send((_stream, _encoder)).unwrap();
+                    }
+                },
+                _ => ()
             }
-            else if data_len >= 5 && ( buf_peek[index] >> 4 == 0x4 || buf_peek[index] >> 4 == 0x6) && *TUN_MODE.lock().unwrap() {
-                                                            // for IP header length:  v4 >= 20, v6 >= 40
-                                                            // for our defined first packet: v4 = 5, v6 = ..
-                tx_tun.send((_stream, _encoder)).unwrap();
-                streams.lock().unwrap().push(stream);       // only push tun mode streams into that, to disconnect
-            }
-            else {
-                streams.lock().unwrap().push(stream);       // push wild streams here, waiting to die
-            }
-/*
-            if *SOCKS5_MODE.lock().unwrap() && *TUN_MODE.lock().unwrap() {
-                let len = _stream.peek(&mut buf_peek).expect("Failed: _stream.peek()");
-                let (data_len, offset) = _encoder.decode(&mut buf_peek[..len]);
-                let index = offset as usize - data_len;
-                //debug!("peek length: {}, data length: {}", len, data_len);
-                if (data_len == 2 + buf_peek[index+1] as usize) && buf_peek[index] == 0x05 {
-                    tx_socks5.send((_stream, _encoder)).expect("Failed: tx_socks5.send()");
-                }
-                else if data_len >= 5 && ( buf_peek[index] >> 4 == 0x4 || buf_peek[index] >> 4 == 0x6) {
-                    tx_tun.send((_stream, _encoder)).unwrap();
-                    streams.lock().unwrap().push(stream);       // only push tun mode streams into that, to disconnect
-                }
-                else {
-                    streams.lock().unwrap().push(stream);       // push wild streams here, waiting to die
-                }
-            }
-            else if *SOCKS5_MODE.lock().unwrap(){
-                tx_socks5.send((_stream, _encoder)).expect("Failed: tx_socks5.send()");
-            }
-            else if *TUN_MODE.lock().unwrap(){
-                tx_tun.send((_stream, _encoder)).unwrap();
-                streams.lock().unwrap().push(stream);       // push wild streams here, waiting to die
-            }
-*/
+            streams.lock().unwrap().push(stream);       // push wild streams here, waiting to die
         });
     }
     debug!("Close port: [{}], lifetime: [{}]", port, lifetime);
