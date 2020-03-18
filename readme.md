@@ -23,9 +23,10 @@ Laptop: i7-8550U(max 4GHz), 16GB LPDDR3 2133 RAM
 
 Result:
 
-```aes-256-gcm```: ~ 300MB/s
-
-```chacha20-poly1305```: ~ 200MB/s
+|| tt | ss-libev|
+|----|----|----|
+|```aes-256-gcm```| 250 ~ 300 MB/s | 350 ~ 400 MB/s |
+|```chacha20-poly1305```| ≈ 200 MB/s | ≈ 300 MB/s |
 
 ----
 ### Roadmap / Aims
@@ -67,7 +68,7 @@ Result:
 ### Usage 
 #### server
 ```
-tt-server 0.9.0
+tt-server 0.10.3
 TT, The Tunnel, server side
 
 USAGE:
@@ -75,7 +76,8 @@ USAGE:
 
 FLAGS:
     -h, --help       Prints help information
-	    --no-port-jump-on-tun-mode
+	--no-port-jump-on-tun-mode
+	--no-socks5
     -V, --version    Prints version information
     -v, --verbose
 
@@ -90,7 +92,7 @@ OPTIONS:
 
 #### client
 ```
-tt-client 0.9.0
+tt-client 0.10.3
 TT, The Tunnel, client side
 
 USAGE:

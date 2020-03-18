@@ -132,7 +132,7 @@ pub fn handle_connection(connection_rx: mpsc::Receiver<(TcpStream, Encoder)>,
                     let data = &buf[offset as usize - data_len .. offset as usize];
                     match _tun_writer.write(data) {
                         Ok(_) => (),
-                        Err(err) => error!("tun write failed, {}", err)
+                        Err(err) => error!("tun write failed, {}; data_len: {}, data: {:?}", err, data_len, data)
                     };
 
                     if data[0] == 0x44 {            // got special 'ipv4 handshake' packet
