@@ -63,7 +63,9 @@ pub fn run(KEY:&'static str, METHOD:&'static EncoderMethods, BIND_ADDR:&'static 
     let time_now = utils::get_secs_now() / 60;
     let _tx_tun = tx_tun.clone();
     let _tx_socks5 = tx_socks5.clone();
-    if (PORT_END - PORT_START) > 2 {
+    if (PORT_END - PORT_START) > 2
+        && utils::get_port(utils::get_otp(KEY, time_now-1), PORT_START, PORT_END)
+            != utils::get_port(utils::get_otp(KEY, time_now), PORT_START, PORT_END) {
         thread::spawn( move || start_listener(_tx_tun, _tx_socks5, KEY, METHOD, BIND_ADDR, PORT_START, PORT_END, time_now - 1));
         thread::sleep(time::Duration::from_millis(100));
     }
@@ -171,17 +173,11 @@ fn start_listener(tx_tun: mpsc::Sender<(net::TcpStream, Encoder)>, tx_socks5: mp
                 break;
             }
             // avoid conflicted ports, stop listening, but do not kill established connections
-            else if utils::get_port(utils::get_otp(KEY, time_now/60+1), PORT_RANGE_START, PORT_RANGE_END) == port {
-                // time_diff > 0
-                if time_diff > 0 {
-                    *_flag_stop.lock().unwrap() = (lifetime - time_diff) as usize;
-                    break;
-                }
-                // time_diff == 0
-                else {
-                    // do nothing, let the new thread wait or fail
-                    continue
-                }
+            else if time_diff > 0 &&
+                (utils::get_port(utils::get_otp(KEY, time_now/60), PORT_RANGE_START, PORT_RANGE_END) == port
+                    || utils::get_port(utils::get_otp(KEY, time_now/60+1), PORT_RANGE_START, PORT_RANGE_END) == port ){
+                *_flag_stop.lock().unwrap() = (lifetime - time_diff) as usize;
+                break;
             }
         }
         drop(_streams);
