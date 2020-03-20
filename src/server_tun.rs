@@ -192,11 +192,10 @@ pub fn handle_connection(connection_rx: mpsc::Receiver<(TcpStream, Encoder)>,
                             _tun_writer.write(&buf[offset as usize - data_len .. offset as usize]).unwrap();
                         }
                         if (index - offset as usize) < (1 + 12 + 2 + 16) {
-                            break; // definitely not enough data to decode
+                            break;              // definitely not enough data to decode
                         }
                     }
-                    else if _offset == -1 {
-                        error!("Packet decode error from: [{}]", stream.peer_addr().unwrap());
+                    else if _offset == -1 {     // decrypted_size == 0 here
                         if last_offset == -1 {
                             offset = -2;
                         }
@@ -205,7 +204,7 @@ pub fn handle_connection(connection_rx: mpsc::Receiver<(TcpStream, Encoder)>,
                         }
                         break;
                     }
-                    else { break; } // decrypted_size ==0 && offset != -1: not enough data to decode
+                    else { break; }             // decrypted_size == 0 && offset != -1: not enough data to decode
                 }
                 if offset > 0 {
                     buf.copy_within(offset as usize .. index, 0);
@@ -216,6 +215,8 @@ pub fn handle_connection(connection_rx: mpsc::Receiver<(TcpStream, Encoder)>,
                     last_offset = -1;
                 }
                 else if offset == -2 {
+                    // if decryption failed continuously, then we kill the stream
+                    error!("Packet decode error from: [{}]", stream.peer_addr().unwrap());
                     break;
                 }
             }

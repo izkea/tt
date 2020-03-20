@@ -85,7 +85,6 @@ pub fn do_handle_connection(client_stream:TcpStream, encoder: Encoder, BUFFER_SI
                     }
                 }
                 else if data_len == 0 && _offset == -1 {
-                    error!("Packet decode error from: [{}]", client_stream_read.peer_addr().unwrap());
                     if last_offset == -1 {
                         offset = -2;
                     }
@@ -94,7 +93,7 @@ pub fn do_handle_connection(client_stream:TcpStream, encoder: Encoder, BUFFER_SI
                     }
                     break;
                 }
-                else { break; } // decrypted_size ==0 && offset != -1: not enough data to decode
+                else { break; } // decrypted_size == 0 && offset != -1: not enough data to decode
             }
             if offset > 0 {
                 buf.copy_within(offset as usize .. index, 0);
@@ -105,6 +104,8 @@ pub fn do_handle_connection(client_stream:TcpStream, encoder: Encoder, BUFFER_SI
                 last_offset = -1;
             }
             else if offset == -2 {
+                // if decryption failed continuously, then we kill the stream
+                error!("Packet decode error from: [{}]", client_stream_read.peer_addr().unwrap());
                 break;
             }
         }
