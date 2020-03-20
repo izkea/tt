@@ -117,7 +117,7 @@ fn start_listener(tx_tun: mpsc::Sender<(net::TcpStream, Encoder)>, tx_socks5: mp
     debug!("Open port : [{}], lifetime: [{}]", port, lifetime);
 
     let streams = Arc::new(Mutex::new(Vec::new())); 
-    let flag_stop = Arc::new(Mutex::new(false));
+    let flag_stop = Arc::new(Mutex::new(0));
 /*
     let listener = match net::TcpListener::bind(format!("{}:{}", BIND_ADDR, port)) {
         Ok(listener) => listener,
@@ -167,36 +167,31 @@ fn start_listener(tx_tun: mpsc::Sender<(net::TcpStream, Encoder)>, tx_socks5: mp
 
             // check lifetime
             if time_diff >= lifetime || time_diff > 2 && _streams.lock().unwrap().len() == 0 {
-                // sleep some secs, to avoid that we always disconnect the client at the first
-                // secs of every minute, that's a obvious traffic pattern as well.
-                thread::sleep(time::Duration::from_secs((rand::random::<u8>() % 60) as u64));
-                *_flag_stop.lock().unwrap() = true;
-                drop(_streams);
-                drop(_flag_stop);
-                net::TcpStream::connect(format!("127.0.0.1:{}", port)).unwrap();
+                *_flag_stop.lock().unwrap() = 1;
                 break;
             }
             // avoid conflicted ports, stop listening, but do not kill established connections
             else if utils::get_port(utils::get_otp(KEY, time_now/60+1), PORT_RANGE_START, PORT_RANGE_END) == port {
                 // time_diff > 0
                 if time_diff > 0 {
-                    *_flag_stop.lock().unwrap() = true;
-                    drop(_streams);
-                    drop(_flag_stop);
-                    net::TcpStream::connect(format!("127.0.0.1:{}", port)).unwrap();
+                    *_flag_stop.lock().unwrap() = (lifetime - time_diff) as usize;
                     break;
                 }
                 // time_diff == 0
                 else {
                     // do nothing, let the new thread wait or fail
+                    continue
                 }
             }
         }
+        drop(_streams);
+        drop(_flag_stop);
+        net::TcpStream::connect(format!("127.0.0.1:{}", port)).unwrap();
     });
 
     let mut buf_peek = [0u8; 512];
     for stream in listener.incoming() {
-        if *flag_stop.lock().unwrap() { 
+        if *flag_stop.lock().unwrap() > 0 {         // 0: ok;  1: stop normally;  > 1: stop but sleep some time to kill streams
             drop(listener); 
             break; 
         };
@@ -240,14 +235,26 @@ fn start_listener(tx_tun: mpsc::Sender<(net::TcpStream, Encoder)>, tx_socks5: mp
     // minute, this seems to be a traffic pattern.
     // so we disable it for socks5 mode, as client_frontend_socks5 will just drop the connection.
     
+    if *flag_stop.lock().unwrap() == 1 {
+        // sleep some seconds to kill
+        thread::sleep(time::Duration::from_secs((rand::random::<u8>() % 30) as u64 + 3));
+    }
+    else {
+        thread::sleep(time::Duration::from_secs((*flag_stop.lock().unwrap() * 60) as u64 + 3));
+    }
+
     if !*NO_PORT_JUMP.lock().unwrap(){
-        let lock = Arc::try_unwrap(streams).expect("Error: lock still has multiple owners");
+        let lock = match Arc::try_unwrap(streams) {
+            Ok(_lock) => _lock,
+            Err(_) => {
+                error!("Lock(streams) has multiple owners, failed to kill streams");
+                return;
+            }
+        };
         let streams = lock.into_inner().expect("Error: mutex cannot be locked");
         for stream in streams {
             stream.shutdown(net::Shutdown::Both).unwrap_or_else(|_err|());
             drop(stream)
         }
-    }
-    else {
     }
 }
