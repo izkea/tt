@@ -180,8 +180,6 @@ fn start_listener(tx_tun: mpsc::Sender<(net::TcpStream, Encoder)>, tx_socks5: mp
                 break;
             }
         }
-        drop(_streams);
-        drop(_flag_stop);
         net::TcpStream::connect(format!("127.0.0.1:{}", port)).unwrap();
     });
 
@@ -227,28 +225,18 @@ fn start_listener(tx_tun: mpsc::Sender<(net::TcpStream, Encoder)>, tx_socks5: mp
     debug!("Close port: [{}], lifetime: [{}]", port, lifetime);
     
     // If we kill all the existing streams, then the client has to establish a new one to
-    // resume downloading process. Also, if we kill streams at the very first seconeds of each
+    // resume connection. Also, if we kill streams at the very first seconeds of each
     // minute, this seems to be a traffic pattern.
-    // so we disable it for socks5 mode, as client_frontend_socks5 will just drop the connection.
     
-    if *flag_stop.lock().unwrap() == 1 {
-        // sleep some seconds to kill
-        thread::sleep(time::Duration::from_secs((rand::random::<u8>() % 30) as u64 + 3));
-    }
-    else {
-        thread::sleep(time::Duration::from_secs((*flag_stop.lock().unwrap() * 60) as u64 + 3));
-    }
+    thread::sleep(time::Duration::from_secs(
+        (
+            ( *flag_stop.lock().unwrap() -1 ) * 60
+            +
+            ( rand::random::<u8>() % 30 ) as usize
+        ) as u64 ));
 
     if !*NO_PORT_JUMP.lock().unwrap(){
-        let lock = match Arc::try_unwrap(streams) {
-            Ok(_lock) => _lock,
-            Err(_) => {
-                error!("Lock(streams) has multiple owners, failed to kill streams");
-                return;
-            }
-        };
-        let streams = lock.into_inner().expect("Error: mutex cannot be locked");
-        for stream in streams {
+        for stream in &*streams.lock().unwrap(){
             stream.shutdown(net::Shutdown::Both).unwrap_or_else(|_err|());
             drop(stream)
         }
