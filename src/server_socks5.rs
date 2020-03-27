@@ -52,7 +52,7 @@ pub fn do_handle_connection(client_stream:TcpStream, encoder: Encoder, BUFFER_SI
         }
         upstream_read.shutdown(net::Shutdown::Both);
         client_stream_write.shutdown(net::Shutdown::Both);
-        debug!("Download stream exited...");
+        trace!("Download stream exited...");
     });
 
     // upload stream
@@ -111,7 +111,7 @@ pub fn do_handle_connection(client_stream:TcpStream, encoder: Encoder, BUFFER_SI
         }
         client_stream_read.shutdown(net::Shutdown::Both);
         upstream_write.shutdown(net::Shutdown::Both);
-        debug!("Upload stream exited...");
+        trace!("Upload stream exited...");
     });
 }
 

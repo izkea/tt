@@ -95,7 +95,7 @@ pub fn handle_connection(connection_rx: mpsc::Receiver<(TcpStream, Encoder)>,
                 }
             }
         }
-        debug!("Download stream exited...");
+        trace!("Download stream exited...");
     });
 
 
@@ -221,7 +221,7 @@ pub fn handle_connection(connection_rx: mpsc::Receiver<(TcpStream, Encoder)>,
                 }
             }
             stream.shutdown(net::Shutdown::Both);
-            debug!("Upload stream exited...");
+            trace!("Upload stream exited...");
         });
     }
 }

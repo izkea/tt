@@ -109,7 +109,7 @@ pub fn handle_connection(local_stream:net::TcpStream, KEY:&'static str,
         }
         upstream_read.shutdown(net::Shutdown::Both);
         local_stream_write.shutdown(net::Shutdown::Both);
-        debug!("Download stream exited...");
+        trace!("Download stream exited...");
     });
 
     // upload stream
@@ -139,6 +139,6 @@ pub fn handle_connection(local_stream:net::TcpStream, KEY:&'static str,
                 }
             };
         }
-        debug!("Upload stream exited...");
+        trace!("Upload stream exited...");
     });
 }

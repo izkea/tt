@@ -161,7 +161,7 @@ fn handle_tun_data(tun_fd: i32, KEY:&'static str, METHOD:&'static EncoderMethods
             }
         }
         stream_read.shutdown(net::Shutdown::Both);
-        debug!("Download stream exited...");
+        trace!("Download stream exited...");
     
     });
 
@@ -205,7 +205,7 @@ fn handle_tun_data(tun_fd: i32, KEY:&'static str, METHOD:&'static EncoderMethods
                 }
             }
         }
-        debug!("Upload stream exited...");
+        trace!("Upload stream exited...");
     });
 
     _download.join();
