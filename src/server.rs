@@ -16,23 +16,23 @@ use log::{trace, debug, info, warn, error, Level};
 
 #[cfg(not(target_os = "windows"))]
 use crate::server_tun;
-use crate::server_socks5;
+use crate::server_proxy;
 use crate::encoder::{Encoder, EncoderMethods};
 use crate::encoder::aes256gcm::AES256GCM;
 use crate::encoder::chacha20poly1305::ChaCha20;
 
 lazy_static! {
     static ref TUN_MODE:    Mutex<bool> = Mutex::new(false);
-    static ref SOCKS5_MODE: Mutex<bool> = Mutex::new(false);
+    static ref PROXY_MODE: Mutex<bool> = Mutex::new(false);
     static ref NO_PORT_JUMP:Mutex<bool> = Mutex::new(false);
 }
 
 pub fn run(KEY:&'static str, METHOD:&'static EncoderMethods, BIND_ADDR:&'static str, 
             PORT_START: u32, PORT_END: u32, BUFFER_SIZE: usize, TUN_IP: Option<String>,
-            MTU: usize, _NO_PORT_JUMP: bool, _NO_SOCKS5: bool) {
+            MTU: usize, _NO_PORT_JUMP: bool, _NO_PROXY: bool) {
 
     let (tx_tun, rx_tun) = mpsc::channel();
-    let (tx_socks5, rx_socks5) = mpsc::channel();
+    let (tx_proxy, rx_proxy) = mpsc::channel();
     *NO_PORT_JUMP.lock().unwrap() = _NO_PORT_JUMP;
 
     *TUN_MODE.lock().unwrap() = match TUN_IP{
@@ -51,10 +51,10 @@ pub fn run(KEY:&'static str, METHOD:&'static EncoderMethods, BIND_ADDR:&'static 
         None => false
     };
 
-    *SOCKS5_MODE.lock().unwrap() = match _NO_SOCKS5 {
+    *PROXY_MODE.lock().unwrap() = match _NO_PROXY {
         false => {
-            info!("TT {}, Server (socks5 mode)", env!("CARGO_PKG_VERSION"));
-            thread::spawn( move || server_socks5::handle_connection(rx_socks5, BUFFER_SIZE));
+            info!("TT {}, Server (proxy mode)", env!("CARGO_PKG_VERSION"));
+            thread::spawn( move || server_proxy::handle_connection(rx_proxy, BUFFER_SIZE));
             true
         },
         true => false
@@ -62,22 +62,22 @@ pub fn run(KEY:&'static str, METHOD:&'static EncoderMethods, BIND_ADDR:&'static 
 
     let time_now = utils::get_secs_now() / 60;
     let _tx_tun = tx_tun.clone();
-    let _tx_socks5 = tx_socks5.clone();
+    let _tx_proxy = tx_proxy.clone();
     if (PORT_END - PORT_START) > 2
         && utils::get_port(utils::get_otp(KEY, time_now-1), PORT_START, PORT_END)
             != utils::get_port(utils::get_otp(KEY, time_now), PORT_START, PORT_END) {
-        thread::spawn( move || start_listener(_tx_tun, _tx_socks5, KEY, METHOD, BIND_ADDR, PORT_START, PORT_END, time_now - 1));
+        thread::spawn( move || start_listener(_tx_tun, _tx_proxy, KEY, METHOD, BIND_ADDR, PORT_START, PORT_END, time_now - 1));
         thread::sleep(time::Duration::from_millis(100));
     }
 
     let _tx_tun = tx_tun.clone();
-    let _tx_socks5 = tx_socks5.clone();
-    thread::spawn( move || start_listener(_tx_tun, _tx_socks5, KEY, METHOD, BIND_ADDR, PORT_START, PORT_END, time_now));
+    let _tx_proxy = tx_proxy.clone();
+    thread::spawn( move || start_listener(_tx_tun, _tx_proxy, KEY, METHOD, BIND_ADDR, PORT_START, PORT_END, time_now));
     thread::sleep(time::Duration::from_millis(100));
 
     let _tx_tun = tx_tun.clone();
-    let _tx_socks5 = tx_socks5.clone();
-    thread::spawn( move || start_listener(_tx_tun, _tx_socks5, KEY, METHOD, BIND_ADDR, PORT_START, PORT_END, time_now + 1));
+    let _tx_proxy = tx_proxy.clone();
+    thread::spawn( move || start_listener(_tx_tun, _tx_proxy, KEY, METHOD, BIND_ADDR, PORT_START, PORT_END, time_now + 1));
 
     loop {
         thread::sleep(time::Duration::from_secs(2));
@@ -87,9 +87,9 @@ pub fn run(KEY:&'static str, METHOD:&'static EncoderMethods, BIND_ADDR:&'static 
                                                         // and not conflict with any thread
                                                         // that waiting for this same port
         let _tx_tun = tx_tun.clone();
-        let _tx_socks5 = tx_socks5.clone();
+        let _tx_proxy = tx_proxy.clone();
         thread::spawn( move || start_listener(
-            _tx_tun, _tx_socks5, KEY, METHOD, BIND_ADDR, PORT_START, PORT_END, utils::get_secs_now()/60 + 1)
+            _tx_tun, _tx_proxy, KEY, METHOD, BIND_ADDR, PORT_START, PORT_END, utils::get_secs_now()/60 + 1)
         );
     }
 
@@ -106,7 +106,7 @@ pub fn run(KEY:&'static str, METHOD:&'static EncoderMethods, BIND_ADDR:&'static 
     */
 }
 
-fn start_listener(tx_tun: mpsc::Sender<(net::TcpStream, Encoder)>, tx_socks5: mpsc::Sender<(net::TcpStream, Encoder)>,
+fn start_listener(tx_tun: mpsc::Sender<(net::TcpStream, Encoder)>, tx_proxy: mpsc::Sender<(net::TcpStream, Encoder)>,
         KEY:&'static str, METHOD:&EncoderMethods, BIND_ADDR:&'static str,
         PORT_RANGE_START:u32, PORT_RANGE_END:u32, time_start:u64) {
     let otp = utils::get_otp(KEY, time_start);
@@ -199,7 +199,7 @@ fn start_listener(tx_tun: mpsc::Sender<(net::TcpStream, Encoder)>, tx_socks5: mp
         };
 
         let tx_tun = tx_tun.clone();
-        let tx_socks5 = tx_socks5.clone();
+        let tx_proxy = tx_proxy.clone();
         let streams = streams.clone();
         let _encoder = encoder.clone();
         thread::spawn( move || {
@@ -208,9 +208,19 @@ fn start_listener(tx_tun: mpsc::Sender<(net::TcpStream, Encoder)>, tx_socks5: mp
                     let (data_len, offset) = _encoder.decode(&mut buf_peek[..len]);
                     let index = offset as usize - data_len;
                     //debug!("peek length: {}, data length: {}", len, data_len);
-                    if (data_len==2+buf_peek[index+1] as usize) && buf_peek[index]==0x05 && *SOCKS5_MODE.lock().unwrap(){
-                        tx_socks5.send((_stream, _encoder)).expect("Failed: tx_socks5.send()");
-                        return                                      // no need to push socks5 stream to die
+                    if *PROXY_MODE.lock().unwrap()
+                        && (
+                            (data_len==2+buf_peek[index+1] as usize) && buf_peek[index]==0x05
+                            || &buf_peek[index .. index + 7] == "CONNECT".as_bytes()
+                            || &buf_peek[index .. index + 3] == "GET".as_bytes()
+                            || &buf_peek[index .. index + 3] == "PUT".as_bytes()
+                            || &buf_peek[index .. index + 4] == "POST".as_bytes()
+                            || &buf_peek[index .. index + 4] == "HEAD".as_bytes()
+                            || &buf_peek[index .. index + 6] == "DELETE".as_bytes()
+                            || &buf_peek[index .. index + 7] == "OPTIONS".as_bytes()
+                        ){
+                        tx_proxy.send((_stream, _encoder)).expect("Failed: tx_proxy.send()");
+                        return                                      // no need to push proxy stream to die
                     }
                     // IP header length: v4>=20, v6>=40, our defined first packet: v4=5, v6=...
                     else if data_len>=5 && (buf_peek[index]>>4==0x4 || buf_peek[index]>>4==0x6) && *TUN_MODE.lock().unwrap(){

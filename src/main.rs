@@ -16,8 +16,8 @@ mod encoder;
 mod server_tun;
 #[cfg(not(target_os = "windows"))]
 mod client_tun;
-mod server_socks5;
-mod client_socks5;
+mod server_proxy;
+mod client_proxy;
 
 use encoder::EncoderMethods;
 
@@ -40,8 +40,8 @@ enum Opt {
         TUN_IP: Option<String>,
         #[structopt(long="no-port-jump-on-tun-mode")]
         NO_PORT_JUMP: bool,
-        #[structopt(long="no-socks5")]
-        NO_SOCKS5: bool,
+        #[structopt(long="no-proxy")]
+        NO_PROXY: bool,
         #[structopt(short, long)]
         VERBOSE: bool,
     },
@@ -69,7 +69,7 @@ enum Opt {
 fn main() {
     utils::my_log::init_with_level(Level::Debug).unwrap();
     match Opt::from_args() {
-        Opt::server{ LISTEN_ADDR, KEY, METHODS, RANGE, MTU, TUN_IP, NO_PORT_JUMP, NO_SOCKS5, VERBOSE } => {
+        Opt::server{ LISTEN_ADDR, KEY, METHODS, RANGE, MTU, TUN_IP, NO_PORT_JUMP, NO_PROXY, VERBOSE } => {
             set_verbose(VERBOSE);
             let RANGE: Vec<&str> = RANGE.split("-").collect();
             let BUFFER_SIZE = if MTU > (4096 - 60) { MTU + 60 } else { 4096 };
@@ -87,7 +87,7 @@ fn main() {
             };
             assert!(MTU<=65536);
             assert!(PORT_RANGE_START <= PORT_RANGE_END);
-            server::run(KEY, METHODS, LISTEN_ADDR, PORT_RANGE_START, PORT_RANGE_END, BUFFER_SIZE, TUN_IP, MTU, NO_PORT_JUMP, NO_SOCKS5);
+            server::run(KEY, METHODS, LISTEN_ADDR, PORT_RANGE_START, PORT_RANGE_END, BUFFER_SIZE, TUN_IP, MTU, NO_PORT_JUMP, NO_PROXY);
         },
         Opt::client{ SERVER, LISTEN_ADDR, KEY, METHODS, RANGE, MTU, TUN_IP, VERBOSE } => {
             set_verbose(VERBOSE);
