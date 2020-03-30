@@ -136,30 +136,37 @@ pub fn proxy_handshake(mut stream: TcpStream, encoder:Encoder) -> Result<TcpStre
 
         let _buf = &buf[offset as usize - data_len .. offset as usize];
         let port:u16 = ((_buf[data_len-2] as u16) << 8) | _buf[data_len-1] as u16;
-        let addr = match _buf[3] {
+        let (addr, domain) = match _buf[3] {
             0x01 => {                                   // ipv4 address
-                vec![SocketAddr::from(
-                    SocketAddrV4::new(Ipv4Addr::new(_buf[4], _buf[5], _buf[6], _buf[7]), port)
-                )]
+                (
+                    vec![SocketAddr::from( SocketAddrV4::new(Ipv4Addr::new(_buf[4], _buf[5], _buf[6], _buf[7]), port) )],
+                    None
+                )
             },
             0x03 => {                                   // domain name
                 let length = _buf[4] as usize;
                 let mut domain = String::from_utf8_lossy(&_buf[5..length+5]).to_string();
                 domain.push_str(&":");
                 domain.push_str(&port.to_string());
-                domain.to_socket_addrs()?.collect()
+                (domain.to_socket_addrs()?.collect(), Some(domain))
             },
             0x04 => {                                   // ipv6 address
                 let buf = (2..10).map(|x| {
                     (u16::from(_buf[(x * 2)]) << 8) | u16::from(_buf[(x * 2) + 1])
                 }).collect::<Vec<u16>>();
-                vec![ SocketAddr::from( SocketAddrV6::new( Ipv6Addr::new(
-                    buf[0], buf[1], buf[2], buf[3], buf[4], buf[5], buf[6], buf[7]), port, 0, 0)
-                )]
+                (
+                    vec![ SocketAddr::from( SocketAddrV6::new( Ipv6Addr::new(
+                        buf[0], buf[1], buf[2], buf[3], buf[4], buf[5], buf[6], buf[7]), port, 0, 0) )],
+                    None
+                 )
             },
             _ => return Err("failed to parse address".into()),
         };
-        debug!("[SOCKS5] CONNECT: {} <==> {}", stream.peer_addr().unwrap(), addr[0]);
+
+        match domain {
+            Some(value) => debug!("[SOCKS5] CONNECT: {} <==> {}", stream.peer_addr().unwrap(), value),
+            None => debug!("[SOCKS5] CONNECT: {} <==> {}", stream.peer_addr().unwrap(), addr[0])
+        }
 
         match TcpStream::connect(&addr[..]){
             Ok(upstream) => {
