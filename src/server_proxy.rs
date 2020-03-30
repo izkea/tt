@@ -164,8 +164,8 @@ pub fn proxy_handshake(mut stream: TcpStream, encoder:Encoder) -> Result<TcpStre
         };
 
         match domain {
-            Some(value) => debug!("[SOCKS5] CONNECT: {} <==> {}", stream.peer_addr().unwrap(), value),
-            None => debug!("[SOCKS5] CONNECT: {} <==> {}", stream.peer_addr().unwrap(), addr[0])
+            Some(value) => debug!("[SOCKS5] CONNECT: {} => {}", stream.peer_addr().unwrap(), value),
+            None => debug!("[SOCKS5] CONNECT: {} => {}", stream.peer_addr().unwrap(), addr[0])
         }
 
         match TcpStream::connect(&addr[..]){
@@ -193,7 +193,7 @@ pub fn proxy_handshake(mut stream: TcpStream, encoder:Encoder) -> Result<TcpStre
         let addr: Vec<SocketAddr> = {
             let _buf = &buf[index .. offset as usize];
             let domain = String::from_utf8_lossy(&buf[index..offset as usize]).split_whitespace().collect::<Vec<&str>>()[1].to_string();
-            debug!("[HTTP] CONNECT: {} <==> {}", stream.peer_addr().unwrap(), domain);
+            debug!("[HTTP] CONNECT: {} => {}", stream.peer_addr().unwrap(), domain);
             domain.to_socket_addrs()?.collect()
         };
         match TcpStream::connect(&addr[..]){
@@ -222,7 +222,7 @@ pub fn proxy_handshake(mut stream: TcpStream, encoder:Encoder) -> Result<TcpStre
         let addr: Vec<SocketAddr> = {
             let _buf = &buf[index .. offset as usize];
             let domain = String::from_utf8_lossy(&buf[index..offset as usize]).split_whitespace().collect::<Vec<&str>>()[1].to_string();
-            debug!("[HTTP] Proxy: {} <==> {}", stream.peer_addr().unwrap(), domain);
+            debug!("[HTTP] Proxy: {} => {}", stream.peer_addr().unwrap(), domain);
             let mut domain = domain.split("//").collect::<Vec<&str>>()[1].trim_end_matches('/').split("/").collect::<Vec<&str>>()[0].to_string();
             if !domain.contains(":") {
                 domain.push_str(":80")
