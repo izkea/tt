@@ -183,7 +183,7 @@ fn start_listener(tx_tun: mpsc::Sender<(net::TcpStream, Encoder)>, tx_proxy: mps
         net::TcpStream::connect(format!("127.0.0.1:{}", port)).unwrap();
     });
 
-    let mut buf_peek = [0u8; 512];
+    let mut buf_peek = [0u8; 4096];
     for stream in listener.incoming() {
         if *flag_stop.lock().unwrap() > 0 {         // 0: ok;  1: stop normally;  > 1: stop but sleep some time to kill streams
             drop(listener); 
@@ -203,31 +203,45 @@ fn start_listener(tx_tun: mpsc::Sender<(net::TcpStream, Encoder)>, tx_proxy: mps
         let streams = streams.clone();
         let _encoder = encoder.clone();
         thread::spawn( move || {
-            match _stream.peek(&mut buf_peek) {
-                Ok(len) if len > 1 => {         // encoder.decode() needs at least 2 bytes, otherwise it will panic
-                    let (data_len, offset) = _encoder.decode(&mut buf_peek[..len]);
-                    let index = offset as usize - data_len;
-                    //debug!("peek length: {}, data length: {}", len, data_len);
-                    if *PROXY_MODE.lock().unwrap()
-                        && (
-                            (data_len==2+buf_peek[index+1] as usize) && buf_peek[index]==0x05
-                            || &buf_peek[index .. index + 7] == "CONNECT".as_bytes()
-                            || &buf_peek[index .. index + 3] == "GET".as_bytes()
-                            || &buf_peek[index .. index + 3] == "PUT".as_bytes()
-                            || &buf_peek[index .. index + 4] == "POST".as_bytes()
-                            || &buf_peek[index .. index + 4] == "HEAD".as_bytes()
-                            || &buf_peek[index .. index + 6] == "DELETE".as_bytes()
-                            || &buf_peek[index .. index + 7] == "OPTIONS".as_bytes()
-                        ){
-                        tx_proxy.send((_stream, _encoder)).expect("Failed: tx_proxy.send()");
-                        return                                      // no need to push proxy stream to die
-                    }
-                    // IP header length: v4>=20, v6>=40, our defined first packet: v4=5, v6=...
-                    else if data_len>=5 && (buf_peek[index]>>4==0x4 || buf_peek[index]>>4==0x6) && *TUN_MODE.lock().unwrap(){
-                        tx_tun.send((_stream, _encoder)).unwrap();
-                    }
-                },
-                _ => ()
+            let mut offset = 0;
+            let mut data_len = 0;
+            let mut count = 10;
+            while count > 0 {
+                let len = match _stream.peek(&mut buf_peek){
+                    Ok(len) if len > 1 => len,
+                    _ => return
+                };
+                let (_data_len, _offset) = _encoder.decode(&mut buf_peek[..len]);
+                if _data_len == 0 && _offset > 0 {             // need to read more
+                    //debug!("peek length: {}, data length: {}, lets continue", len, _data_len);
+                    thread::sleep(time::Duration::from_millis(200));
+                    count -= 1;
+                    continue
+                }
+                offset = _offset;
+                data_len = _data_len;
+                break
+            }
+
+            let index = offset as usize - data_len;
+            if *PROXY_MODE.lock().expect("PROXY_MODE lock failed") && data_len > 2
+                && (
+                    (data_len == 2 + buf_peek[index + 1] as usize) && buf_peek[index] == 0x05
+                    || &buf_peek[index .. index + 7] == "CONNECT".as_bytes()
+                    || &buf_peek[index .. index + 3] == "GET".as_bytes()
+                    || &buf_peek[index .. index + 3] == "PUT".as_bytes()
+                    || &buf_peek[index .. index + 4] == "POST".as_bytes()
+                    || &buf_peek[index .. index + 4] == "HEAD".as_bytes()
+                    || &buf_peek[index .. index + 6] == "DELETE".as_bytes()
+                    || &buf_peek[index .. index + 7] == "OPTIONS".as_bytes()
+                ){
+                tx_proxy.send((_stream, _encoder)).expect("Failed: tx_proxy.send()");
+                return                                      // no need to push proxy stream to die
+            }
+            // IP header length: v4>=20, v6>=40, our defined first packet: v4=5, v6=...
+            else if *TUN_MODE.lock().expect("TUN_MODE lock failed") && data_len >= 5
+                && (buf_peek[index]>>4 == 0x4 || buf_peek[index]>>4 == 0x6){
+                    tx_tun.send((_stream, _encoder)).unwrap();
             }
             streams.lock().unwrap().push(stream);       // push wild streams here, waiting to die
         });
