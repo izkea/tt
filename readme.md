@@ -9,7 +9,7 @@ A lightwight, cross-platform, secure and functional tunnel protocol, or tool.
 
 #### client
 
-    tt client -s [server addr] -k password      # will listen for socks5 connection on 127.0.0.1:1080
+    tt client -s [server addr] -k password      # will listen for http/socks5 proxy connection on 127.0.0.1:1080
 
 ----
 ### Benchmark?
