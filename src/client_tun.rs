@@ -135,7 +135,6 @@ fn handle_tun_data(tun_fd: i32, KEY:&'static str, METHOD:&'static EncoderMethods
                     }
                 }
                 else if data_len == 0 && _offset == -1 {
-                     error!("Packet decode error!");
                      if last_offset == -1 {
                          offset = -2;
                      }
@@ -156,11 +155,13 @@ fn handle_tun_data(tun_fd: i32, KEY:&'static str, METHOD:&'static EncoderMethods
                 last_offset = -1;
             }
             else if offset == -2 {
+                // if decryption failed continuously, then we kill the stream
+                error!("Packet decode error!");
                 break;
             }
         }
         stream_read.shutdown(net::Shutdown::Both);
-        debug!("Download stream exited...");
+        trace!("Download stream exited...");
     
     });
 
@@ -204,7 +205,7 @@ fn handle_tun_data(tun_fd: i32, KEY:&'static str, METHOD:&'static EncoderMethods
                 }
             }
         }
-        debug!("Upload stream exited...");
+        trace!("Upload stream exited...");
     });
 
     _download.join();

@@ -95,7 +95,7 @@ pub fn handle_connection(connection_rx: mpsc::Receiver<(TcpStream, Encoder)>,
                 }
             }
         }
-        debug!("Download stream exited...");
+        trace!("Download stream exited...");
     });
 
 
@@ -105,8 +105,6 @@ pub fn handle_connection(connection_rx: mpsc::Receiver<(TcpStream, Encoder)>,
         let _clients = clients.clone();
         let mut _tun_writer = utils::tun_fd::TunFd::new(raw_fd);
         let _upload = thread::spawn(move || {
-            info!("========================================================");
-            info!("New Conn: [{}] <=> [{}]", stream.local_addr().unwrap(), stream.peer_addr().unwrap());
             stream.set_nodelay(true);
             let mut index: usize = 0;
             let mut offset:  i32 = 4 + 1 + 12 + 2 + 16;         // maximum data size read at first
@@ -160,13 +158,14 @@ pub fn handle_connection(connection_rx: mpsc::Receiver<(TcpStream, Encoder)>,
                     continue;
                 }
                 else if offset == -1 {
-                    error!("Client first packet error!");
+                    error!("Conn Failed: [{}] <=> [{}], Client first packet error!",
+                        stream.local_addr().unwrap(), stream.peer_addr().unwrap());
                 }
                 //stream.shutdown(net::Shutdown::Both);
                 return;
             }
 
-            info!("Connection OK! with IP: [{}]", src_ip);
+            info!("Conn OK: [{}] <=> [{}], with IP: [{}]", stream.local_addr().unwrap(), stream.peer_addr().unwrap(), src_ip);
 
             index = 0;
             loop {
@@ -192,11 +191,10 @@ pub fn handle_connection(connection_rx: mpsc::Receiver<(TcpStream, Encoder)>,
                             _tun_writer.write(&buf[offset as usize - data_len .. offset as usize]).unwrap();
                         }
                         if (index - offset as usize) < (1 + 12 + 2 + 16) {
-                            break; // definitely not enough data to decode
+                            break;              // definitely not enough data to decode
                         }
                     }
-                    else if _offset == -1 {
-                        error!("Packet decode error from: [{}]", stream.peer_addr().unwrap());
+                    else if _offset == -1 {     // decrypted_size == 0 here
                         if last_offset == -1 {
                             offset = -2;
                         }
@@ -205,7 +203,7 @@ pub fn handle_connection(connection_rx: mpsc::Receiver<(TcpStream, Encoder)>,
                         }
                         break;
                     }
-                    else { break; } // decrypted_size ==0 && offset != -1: not enough data to decode
+                    else { break; }             // decrypted_size == 0 && offset != -1: not enough data to decode
                 }
                 if offset > 0 {
                     buf.copy_within(offset as usize .. index, 0);
@@ -216,11 +214,13 @@ pub fn handle_connection(connection_rx: mpsc::Receiver<(TcpStream, Encoder)>,
                     last_offset = -1;
                 }
                 else if offset == -2 {
+                    // if decryption failed continuously, then we kill the stream
+                    error!("Packet decode error from: [{}]", stream.peer_addr().unwrap());
                     break;
                 }
             }
             stream.shutdown(net::Shutdown::Both);
-            debug!("Upload stream exited...");
+            trace!("Upload stream exited...");
         });
     }
 }

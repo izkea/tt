@@ -18,7 +18,7 @@ use log::{trace, debug, info, warn, error, Level};
 
 #[cfg(not(target_os = "windows"))]
 use crate::client_tun;
-use crate::client_socks5;
+use crate::client_proxy;
 
 pub fn get_stream(KEY:&'static str, METHOD:&'static EncoderMethods, time_now:u64,
             SERVER_ADDR:&'static str, PORT_RANGE_START:u32, PORT_RANGE_END:u32) 
@@ -105,7 +105,7 @@ pub fn run(KEY:&'static str, METHOD:&'static EncoderMethods, SERVER_ADDR:&'stati
         }
     }
     else{
-        info!("TT {}, Client (socks5 mode)", env!("CARGO_PKG_VERSION"));
-        client_socks5::run(&KEY, METHOD, &SERVER_ADDR, &LISTEN_ADDR, PORT_START, PORT_END, BUFFER_SIZE);
+        info!("TT {}, Client (proxy mode)", env!("CARGO_PKG_VERSION"));
+        client_proxy::run(&KEY, METHOD, &SERVER_ADDR, &LISTEN_ADDR, PORT_START, PORT_END, BUFFER_SIZE);
     }
 }

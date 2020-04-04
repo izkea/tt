@@ -82,7 +82,6 @@ pub fn handle_connection(local_stream:net::TcpStream, KEY:&'static str,
                     }
                 }
                 else if data_len == 0 && _offset == -1 {
-                    error!("Packet decode error!");
                     if last_offset == -1 {
                         offset = -2;
                     }
@@ -103,12 +102,14 @@ pub fn handle_connection(local_stream:net::TcpStream, KEY:&'static str,
                 last_offset = -1;
             }
             else if offset == -2 {
+                // if decryption failed continuously, then we kill the stream
+                error!("Packet decode error!");
                 break;
             }
         }
         upstream_read.shutdown(net::Shutdown::Both);
         local_stream_write.shutdown(net::Shutdown::Both);
-        debug!("Download stream exited...");
+        trace!("Download stream exited...");
     });
 
     // upload stream
@@ -138,6 +139,6 @@ pub fn handle_connection(local_stream:net::TcpStream, KEY:&'static str,
                 }
             };
         }
-        debug!("Upload stream exited...");
+        trace!("Upload stream exited...");
     });
 }

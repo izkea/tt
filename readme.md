@@ -9,7 +9,7 @@ A lightwight, cross-platform, secure and functional tunnel protocol, or tool.
 
 #### client
 
-    tt client -s [server addr] -k password      # will listen for socks5 connection on 127.0.0.1:1080
+    tt client -s [server addr] -k password      # will listen for http/socks5 proxy connection on 127.0.0.1:1080
 
 ----
 ### Benchmark?
@@ -43,6 +43,7 @@ Result:
     - [ ] TCP with fastopen
     - [ ] UDP
 - [x] Proxy & tunnels 
+    - [x] http proxy
     - [x] socks5 proxy(only CONNECT command suppported)
     - [x] TUN support (for Linux
 	- [x] UTUN support (for MacOS
@@ -68,7 +69,7 @@ Result:
 ### Usage 
 #### server
 ```
-tt-server 0.10.3
+tt-server 0.11.0
 TT, The Tunnel, server side
 
 USAGE:
@@ -77,7 +78,7 @@ USAGE:
 FLAGS:
     -h, --help       Prints help information
 	--no-port-jump-on-tun-mode
-	--no-socks5
+	--no-proxy
     -V, --version    Prints version information
     -v, --verbose
 
@@ -92,7 +93,7 @@ OPTIONS:
 
 #### client
 ```
-tt-client 0.10.3
+tt-client 0.11.0
 TT, The Tunnel, client side
 
 USAGE:

@@ -16,23 +16,23 @@ use log::{trace, debug, info, warn, error, Level};
 
 #[cfg(not(target_os = "windows"))]
 use crate::server_tun;
-use crate::server_socks5;
+use crate::server_proxy;
 use crate::encoder::{Encoder, EncoderMethods};
 use crate::encoder::aes256gcm::AES256GCM;
 use crate::encoder::chacha20poly1305::ChaCha20;
 
 lazy_static! {
     static ref TUN_MODE:    Mutex<bool> = Mutex::new(false);
-    static ref SOCKS5_MODE: Mutex<bool> = Mutex::new(false);
+    static ref PROXY_MODE: Mutex<bool> = Mutex::new(false);
     static ref NO_PORT_JUMP:Mutex<bool> = Mutex::new(false);
 }
 
 pub fn run(KEY:&'static str, METHOD:&'static EncoderMethods, BIND_ADDR:&'static str, 
             PORT_START: u32, PORT_END: u32, BUFFER_SIZE: usize, TUN_IP: Option<String>,
-            MTU: usize, _NO_PORT_JUMP: bool, _NO_SOCKS5: bool) {
+            MTU: usize, _NO_PORT_JUMP: bool, _NO_PROXY: bool) {
 
     let (tx_tun, rx_tun) = mpsc::channel();
-    let (tx_socks5, rx_socks5) = mpsc::channel();
+    let (tx_proxy, rx_proxy) = mpsc::channel();
     *NO_PORT_JUMP.lock().unwrap() = _NO_PORT_JUMP;
 
     *TUN_MODE.lock().unwrap() = match TUN_IP{
@@ -51,10 +51,10 @@ pub fn run(KEY:&'static str, METHOD:&'static EncoderMethods, BIND_ADDR:&'static 
         None => false
     };
 
-    *SOCKS5_MODE.lock().unwrap() = match _NO_SOCKS5 {
+    *PROXY_MODE.lock().unwrap() = match _NO_PROXY {
         false => {
-            info!("TT {}, Server (socks5 mode)", env!("CARGO_PKG_VERSION"));
-            thread::spawn( move || server_socks5::handle_connection(rx_socks5, BUFFER_SIZE));
+            info!("TT {}, Server (proxy mode)", env!("CARGO_PKG_VERSION"));
+            thread::spawn( move || server_proxy::handle_connection(rx_proxy, BUFFER_SIZE));
             true
         },
         true => false
@@ -62,20 +62,22 @@ pub fn run(KEY:&'static str, METHOD:&'static EncoderMethods, BIND_ADDR:&'static 
 
     let time_now = utils::get_secs_now() / 60;
     let _tx_tun = tx_tun.clone();
-    let _tx_socks5 = tx_socks5.clone();
-    if (PORT_END - PORT_START) > 2 {
-        thread::spawn( move || start_listener(_tx_tun, _tx_socks5, KEY, METHOD, BIND_ADDR, PORT_START, PORT_END, time_now - 1));
+    let _tx_proxy = tx_proxy.clone();
+    if (PORT_END - PORT_START) > 2
+        && utils::get_port(utils::get_otp(KEY, time_now-1), PORT_START, PORT_END)
+            != utils::get_port(utils::get_otp(KEY, time_now), PORT_START, PORT_END) {
+        thread::spawn( move || start_listener(_tx_tun, _tx_proxy, KEY, METHOD, BIND_ADDR, PORT_START, PORT_END, time_now - 1));
         thread::sleep(time::Duration::from_millis(100));
     }
 
     let _tx_tun = tx_tun.clone();
-    let _tx_socks5 = tx_socks5.clone();
-    thread::spawn( move || start_listener(_tx_tun, _tx_socks5, KEY, METHOD, BIND_ADDR, PORT_START, PORT_END, time_now));
+    let _tx_proxy = tx_proxy.clone();
+    thread::spawn( move || start_listener(_tx_tun, _tx_proxy, KEY, METHOD, BIND_ADDR, PORT_START, PORT_END, time_now));
     thread::sleep(time::Duration::from_millis(100));
 
     let _tx_tun = tx_tun.clone();
-    let _tx_socks5 = tx_socks5.clone();
-    thread::spawn( move || start_listener(_tx_tun, _tx_socks5, KEY, METHOD, BIND_ADDR, PORT_START, PORT_END, time_now + 1));
+    let _tx_proxy = tx_proxy.clone();
+    thread::spawn( move || start_listener(_tx_tun, _tx_proxy, KEY, METHOD, BIND_ADDR, PORT_START, PORT_END, time_now + 1));
 
     loop {
         thread::sleep(time::Duration::from_secs(2));
@@ -85,9 +87,9 @@ pub fn run(KEY:&'static str, METHOD:&'static EncoderMethods, BIND_ADDR:&'static 
                                                         // and not conflict with any thread
                                                         // that waiting for this same port
         let _tx_tun = tx_tun.clone();
-        let _tx_socks5 = tx_socks5.clone();
+        let _tx_proxy = tx_proxy.clone();
         thread::spawn( move || start_listener(
-            _tx_tun, _tx_socks5, KEY, METHOD, BIND_ADDR, PORT_START, PORT_END, utils::get_secs_now()/60 + 1)
+            _tx_tun, _tx_proxy, KEY, METHOD, BIND_ADDR, PORT_START, PORT_END, utils::get_secs_now()/60 + 1)
         );
     }
 
@@ -104,7 +106,7 @@ pub fn run(KEY:&'static str, METHOD:&'static EncoderMethods, BIND_ADDR:&'static 
     */
 }
 
-fn start_listener(tx_tun: mpsc::Sender<(net::TcpStream, Encoder)>, tx_socks5: mpsc::Sender<(net::TcpStream, Encoder)>,
+fn start_listener(tx_tun: mpsc::Sender<(net::TcpStream, Encoder)>, tx_proxy: mpsc::Sender<(net::TcpStream, Encoder)>,
         KEY:&'static str, METHOD:&EncoderMethods, BIND_ADDR:&'static str,
         PORT_RANGE_START:u32, PORT_RANGE_END:u32, time_start:u64) {
     let otp = utils::get_otp(KEY, time_start);
@@ -117,7 +119,7 @@ fn start_listener(tx_tun: mpsc::Sender<(net::TcpStream, Encoder)>, tx_socks5: mp
     debug!("Open port : [{}], lifetime: [{}]", port, lifetime);
 
     let streams = Arc::new(Mutex::new(Vec::new())); 
-    let flag_stop = Arc::new(Mutex::new(false));
+    let flag_stop = Arc::new(Mutex::new(0));
 /*
     let listener = match net::TcpListener::bind(format!("{}:{}", BIND_ADDR, port)) {
         Ok(listener) => listener,
@@ -167,36 +169,23 @@ fn start_listener(tx_tun: mpsc::Sender<(net::TcpStream, Encoder)>, tx_socks5: mp
 
             // check lifetime
             if time_diff >= lifetime || time_diff > 2 && _streams.lock().unwrap().len() == 0 {
-                // sleep some secs, to avoid that we always disconnect the client at the first
-                // secs of every minute, that's a obvious traffic pattern as well.
-                thread::sleep(time::Duration::from_secs((rand::random::<u8>() % 60) as u64));
-                *_flag_stop.lock().unwrap() = true;
-                drop(_streams);
-                drop(_flag_stop);
-                net::TcpStream::connect(format!("127.0.0.1:{}", port)).unwrap();
+                *_flag_stop.lock().unwrap() = 1;
                 break;
             }
             // avoid conflicted ports, stop listening, but do not kill established connections
-            else if utils::get_port(utils::get_otp(KEY, time_now/60+1), PORT_RANGE_START, PORT_RANGE_END) == port {
-                // time_diff > 0
-                if time_diff > 0 {
-                    *_flag_stop.lock().unwrap() = true;
-                    drop(_streams);
-                    drop(_flag_stop);
-                    net::TcpStream::connect(format!("127.0.0.1:{}", port)).unwrap();
-                    break;
-                }
-                // time_diff == 0
-                else {
-                    // do nothing, let the new thread wait or fail
-                }
+            else if time_diff > 0 &&
+                (utils::get_port(utils::get_otp(KEY, time_now/60), PORT_RANGE_START, PORT_RANGE_END) == port
+                    || utils::get_port(utils::get_otp(KEY, time_now/60+1), PORT_RANGE_START, PORT_RANGE_END) == port ){
+                *_flag_stop.lock().unwrap() = (lifetime - time_diff) as usize;
+                break;
             }
         }
+        net::TcpStream::connect(format!("127.0.0.1:{}", port)).unwrap();
     });
 
-    let mut buf_peek = [0u8; 512];
+    let mut buf_peek = [0u8; 4096];
     for stream in listener.incoming() {
-        if *flag_stop.lock().unwrap() { 
+        if *flag_stop.lock().unwrap() > 0 {         // 0: ok;  1: stop normally;  > 1: stop but sleep some time to kill streams
             drop(listener); 
             break; 
         };
@@ -210,25 +199,49 @@ fn start_listener(tx_tun: mpsc::Sender<(net::TcpStream, Encoder)>, tx_socks5: mp
         };
 
         let tx_tun = tx_tun.clone();
-        let tx_socks5 = tx_socks5.clone();
+        let tx_proxy = tx_proxy.clone();
         let streams = streams.clone();
         let _encoder = encoder.clone();
         thread::spawn( move || {
-            match _stream.peek(&mut buf_peek) {
-                Ok(len) if len > 1 => {         // encoder.decode() needs at least 2 bytes, otherwise it will panic
-                    let (data_len, offset) = _encoder.decode(&mut buf_peek[..len]);
-                    let index = offset as usize - data_len;
-                    //debug!("peek length: {}, data length: {}", len, data_len);
-                    if (data_len==2+buf_peek[index+1] as usize) && buf_peek[index]==0x05 && *SOCKS5_MODE.lock().unwrap(){
-                        tx_socks5.send((_stream, _encoder)).expect("Failed: tx_socks5.send()");
-                        return                                      // no need to push socks5 stream to die
-                    }
-                    // IP header length: v4>=20, v6>=40, our defined first packet: v4=5, v6=...
-                    else if data_len>=5 && (buf_peek[index]>>4==0x4 || buf_peek[index]>>4==0x6) && *TUN_MODE.lock().unwrap(){
-                        tx_tun.send((_stream, _encoder)).unwrap();
-                    }
-                },
-                _ => ()
+            let mut offset = 0;
+            let mut data_len = 0;
+            let mut count = 10;
+            while count > 0 {
+                let len = match _stream.peek(&mut buf_peek){
+                    Ok(len) if len > 1 => len,
+                    _ => return
+                };
+                let (_data_len, _offset) = _encoder.decode(&mut buf_peek[..len]);
+                if _data_len == 0 && _offset > 0 {             // need to read more
+                    //debug!("peek length: {}, data length: {}, lets continue", len, _data_len);
+                    thread::sleep(time::Duration::from_millis(200));
+                    count -= 1;
+                    continue
+                }
+                offset = _offset;
+                data_len = _data_len;
+                break
+            }
+
+            let index = offset as usize - data_len;
+            if *PROXY_MODE.lock().expect("PROXY_MODE lock failed") && data_len > 2
+                && (
+                    (data_len == 2 + buf_peek[index + 1] as usize) && buf_peek[index] == 0x05
+                    || &buf_peek[index .. index + 7] == "CONNECT".as_bytes()
+                    || &buf_peek[index .. index + 3] == "GET".as_bytes()
+                    || &buf_peek[index .. index + 3] == "PUT".as_bytes()
+                    || &buf_peek[index .. index + 4] == "POST".as_bytes()
+                    || &buf_peek[index .. index + 4] == "HEAD".as_bytes()
+                    || &buf_peek[index .. index + 6] == "DELETE".as_bytes()
+                    || &buf_peek[index .. index + 7] == "OPTIONS".as_bytes()
+                ){
+                tx_proxy.send((_stream, _encoder)).expect("Failed: tx_proxy.send()");
+                return                                      // no need to push proxy stream to die
+            }
+            // IP header length: v4>=20, v6>=40, our defined first packet: v4=5, v6=...
+            else if *TUN_MODE.lock().expect("TUN_MODE lock failed") && data_len >= 5
+                && (buf_peek[index]>>4 == 0x4 || buf_peek[index]>>4 == 0x6){
+                    tx_tun.send((_stream, _encoder)).unwrap();
             }
             streams.lock().unwrap().push(stream);       // push wild streams here, waiting to die
         });
@@ -236,18 +249,20 @@ fn start_listener(tx_tun: mpsc::Sender<(net::TcpStream, Encoder)>, tx_socks5: mp
     debug!("Close port: [{}], lifetime: [{}]", port, lifetime);
     
     // If we kill all the existing streams, then the client has to establish a new one to
-    // resume downloading process. Also, if we kill streams at the very first seconeds of each
+    // resume connection. Also, if we kill streams at the very first seconeds of each
     // minute, this seems to be a traffic pattern.
-    // so we disable it for socks5 mode, as client_frontend_socks5 will just drop the connection.
     
+    thread::sleep(time::Duration::from_secs(
+        (
+            ( *flag_stop.lock().unwrap() -1 ) * 60
+            +
+            ( rand::random::<u8>() % 30 ) as usize
+        ) as u64 ));
+
     if !*NO_PORT_JUMP.lock().unwrap(){
-        let lock = Arc::try_unwrap(streams).expect("Error: lock still has multiple owners");
-        let streams = lock.into_inner().expect("Error: mutex cannot be locked");
-        for stream in streams {
+        for stream in &*streams.lock().unwrap(){
             stream.shutdown(net::Shutdown::Both).unwrap_or_else(|_err|());
             drop(stream)
         }
-    }
-    else {
     }
 }
