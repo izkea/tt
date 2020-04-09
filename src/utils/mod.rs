@@ -2,9 +2,7 @@
 extern crate oath;
 extern crate rand;
 extern crate sha2;
-extern crate chrono;
 
-use chrono::prelude::*;
 use rand::Rng;
 use std::time;
 use std::error;
@@ -65,8 +63,7 @@ pub fn get_port(otp:u32, PORT_RANGE_START:u32, PORT_RANGE_END:u32) -> u32 {
         PORT_RANGE_START
     }
     else {
-		    let dt = Local::now();
-        let now = (dt.timestamp() / 60) as u32;
+				let now = (get_secs_now() / 60) as u32;
         now % (PORT_RANGE_END - PORT_RANGE_START) + PORT_RANGE_START
     }
 }
